@@ -112,8 +112,10 @@ class Model extends Observable implements Observer{
 			$pk = is_string($id) ? "'". mysql_escape_string($id). "'":$id;
 			if($cols==null) $cols ="*";
 			$sql = "SELECT ".$cols." FROM ".$this->table." WHERE `".$pkName."`=".$pk." LIMIT 1";
+			error_log($sql);
 			$res = db_query($sql,$useCache);
 		    $data = $res[0];
+		    $this->data = $data;
 		    return $data;
 		} catch (PDOException $e) {
 			error_log($sql);
@@ -147,7 +149,6 @@ class Model extends Observable implements Observer{
 	 * @param boolean $useCache
 	 */
 	public function save($data=null, $returnId=false){
-		$o = $this;
 		if (isset($data)){
 			foreach ($data as $k => $v){
 				$this->set($k, $v);

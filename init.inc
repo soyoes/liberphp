@@ -55,7 +55,7 @@ if (!apc_load_constants("CONF")){
 	$userEnv['LIBER_CTRL_DIR'] = $userEnv['LIBER_DIR']."common/controllers".__SLASH__;
 	$userEnv['LIBER_LIB_DIR'] = $userEnv['LIBER_DIR']."lib".__SLASH__;
 	$userEnv['LIBER_MODULE_DIR'] = $userEnv['LIBER_DIR']."modules".__SLASH__;
-	$userEnv['SMARTY_DIR'] = $userEnv['LIBER_LIB_DIR'] . "smarty".__SLASH__;
+	$userEnv['SMARTY_DIR'] = isset($CONF["APP"]['smarty_dir'])?$CONF["APP"]['smarty_dir']:$wroot.__SLASH__."lib".__SLASH__."smarty".__SLASH__;
 	$userEnv["JS_PATH"] = isset($CONF["APP"]['js_path'])?$CONF["APP"]['js_path']:"/js/";
 	$userEnv["CSS_PATH"] = isset($CONF["APP"]['css_path'])?$CONF["APP"]['css_path']:"/css/";
 	$userEnv["IMAGE_PATH"] = isset($CONF["APP"]['image_path'])?$CONF["APP"]['image_path']:"/images/";

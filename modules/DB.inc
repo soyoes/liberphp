@@ -111,7 +111,7 @@ function db_query($sql, $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
 		}
 		$db = db_conn();
 		$statement = $db->prepare($sql);
-		var_dump($statement);
+		//var_dump($statement);
 		if ($statement->execute () == FALSE) {
 			return null;
 		}
@@ -134,12 +134,9 @@ function db_query($sql, $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
 function db_exec($sql){
 	try {
 		$db = db_conn();
-		$sth = $db->prepare($sql);
-		$q = $sth->execute();
-		$result = $q? $q:null;
-		return $result;
+		return $db->exec($sql);
 	} catch (PDOException $e) {
-		error_log($sql);
+		error_log("DB_ERR Exec :",$sql);
 		return false;
 	}
 }
@@ -229,8 +226,22 @@ function db_find1st($table, $opts=[]){
  * insert many records to DB
  * @param $datas : hash list
  * @param table:tablename
+ * @example:
+ * 	db_import("tasks", [
+		[
+			"ownerId"	=> 3,
+			"title"=> "taskD with bson",
+			"data" => ["name"=>"ssss","age"=>18]
+		],
+		[
+			"ownerId"	=> 4,
+			"title"=> "taskE with bson",
+			"data" => ["name"=>"ssss","age"=>18]
+		]
+	]);
+ * 
  * */
-function db_import($table, $datas, $sql_dump_path=null){
+function db_import($table, $datas){
 	if(!isset($table) || count($datas)==0)
 		return false;
 	
@@ -244,18 +255,18 @@ function db_import($table, $datas, $sql_dump_path=null){
 	$regName = defined(DB_REGAT_NAME)?DB_REGAT_NAME:"regAt";
 	$updName = defined(DB_UPDAT_NAME)?DB_UPDAT_NAME:"updAt";
 	
-	$hasRegStamp = array_key_exists($regName,$this->schema);
+	$hasRegStamp = array_key_exists($regName,$schema);
 	if($hasRegStamp && !in_array($regName, $cols)) $cols[] = $regName;
 
-	$hasTimestamp = array_key_exists($updName,$this->schema);
+	$hasTimestamp = array_key_exists($updName,$schema);
 	if($hasTimestamp && !in_array($updName, $cols)) $cols[] = $updName;
 
 	$sql = "INSERT IGNORE INTO ".$table." (`".join("`,`", $cols)."`) VALUES ";
 	$time = time();
 
 	foreach ($datas as $d){
-		if($hasRegStamp){$d[$hasRegStamp]=$time;}
-		if($hasTimestamp){$d[$hasTimestamp]=$time;}
+		if($hasRegStamp){$d[$regName]=$time;}
+		if($hasTimestamp){$d[$updName]=$time;}
 		$vals = [];
 		foreach ($cols as $c){
 			$v = array_key_exists($c, $d) ? $d[$c] : null;
@@ -270,7 +281,7 @@ function db_import($table, $datas, $sql_dump_path=null){
 		fwrite($handle, $sql);
 	}else{
 		//error_log("DB::import ".$sql);
-		db_trans([$sql]);
+		db_exec($sql);
 	}
 }
 
@@ -437,9 +448,12 @@ function db_save($table, $data, $returnId=false, $bson=false){
 		$sql = sprintf(FORMAT_INSERT_DB, $ignore, $table, $colStmt, $valStmt);
 	}
 	try {
-		db_exec($sql);
-		if($returnId==true && !$isUpdate) // TODO test 
-			$data["id"] = db_count("SELECT LAST_INSERT_ID() as 'last_id';",false);
+		if($returnId==true && !$isUpdate) {
+			$res = db_trans([$sql, "SELECT LAST_INSERT_ID() as 'last_id'"]);
+			$data["id"] = $res[0]["last_id"];
+		}else{
+			db_exec($sql);
+		}
 		return $data;
 	} catch (PDOException $e) {
 		error_log($sql);
@@ -475,14 +489,19 @@ function db_schema($schemaName){
  * 	@example array
  * 		db_trans(["DROP TABLE fruit","UPDATE dessert SET name = 'hamburger'","@rollback"])
  * 
+ * 		$rs = db_trans(["update tasks set members='dds' where id=35", "select * from tasks where id=35"]);
+		echo json_encode($rs);
  * */
 function db_trans($querys){
-	if(!$querys)
+	if(!isset($querys))
 		return false;
 	$db = db_conn();
+	$mod = $db->getAttribute(PDO::ATTR_ERRMODE);
 	$db->setAttribute( PDO::ATTR_AUTOCOMMIT, 0 );
+	$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$db->beginTransaction();
 	$cnt = 0;
+	$res = true;
 	try{
 		if(is_callable($querys)){
 			$cnt = $querys($db);
@@ -491,20 +510,30 @@ function db_trans($querys){
 				if($q==="@rollback"){
 					$db->rollBack();$cnt--;
 				}else{
-					$db->exec($q);$cnt++;
+					if(Strings::startsWith(strtolower($q), "select")){
+						$statement = $db->prepare($q);
+						if ($statement->execute() == FALSE) {
+							continue;
+						}
+						$res = $statement->fetchAll(PDO::FETCH_ASSOC);//FIXME PDO option
+					}else {
+						$r = $db->exec($q);
+					}
+					$cnt++;
 				}
 			}
 		}	
 	}catch(Exception $e){
 		error_log("DB Transaction ERR:",$e->getMessage());
-		while(0 < $cnt--){
-			$db->rollBack();
-		}
+		//while(0 < $cnt--){
+		$db->rollBack();
+		//}
 	}
 	if($cnt>0)
 		$db->commit();
 	$db->setAttribute( PDO::ATTR_AUTOCOMMIT, 1 );
-	return true;
+	$db->setAttribute(PDO::ATTR_ERRMODE, $mod);
+	return $res;
 }
 function bson_enc($arr){
 	$str = json_encode($arr);

@@ -38,6 +38,8 @@ function create(){
 	$path =explode("/",$pwd);
 	$path = join("/",array_slice($path, 0, count($path)-2))."/".$proj;
 	
+	exec("cp init.inc ../$proj/");
+	
 	echo <<<EOF
 DONE!
 Your project is created under $path
@@ -67,9 +69,12 @@ Your project is created under $path
 > cd $pwd
 > ./liberphp.php ../$proj
 
-# 4) Restart your apache
+# 4) Check out Smarty (http://www.smarty.net/download) 
+	 to $path/lib/smarty
+
+# 5) Restart your apache
 		
-# 5) Try it by accessing http://$proj.dev
+# 6) Try it by accessing http://$proj.dev
 	
    
 EOF;
