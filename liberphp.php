@@ -39,6 +39,7 @@ function create(){
 	$path = join("/",array_slice($path, 0, count($path)-2))."/".$proj;
 	
 	exec("cp init.inc ../$proj/");
+	exec("cp -p liberphp.php ../$proj/");
 	
 	echo <<<EOF
 DONE!
@@ -90,15 +91,15 @@ EOF;
 function migrate(){
 	try{
 		//create database;
-		$sql = "CREATE DATABASE IF NOT EXISTS `DBName` CHARACTER SET utf8 COLLATE utf8_general_ci;";
-		
-		db_query($sql);
+		$//sql = "CREATE DATABASE IF NOT EXISTS `DBName` CHARACTER SET utf8 COLLATE utf8_general_ci;";
+		//db_query($sql);
 		//create assign user
 		
 		$sys_schemas = glob(LIBER_DIR."common/schemas/*.ini") ;
 		$app_schemas = glob(CONF_DIR."schemas/*.ini") ;
-		$schemas = array_merge($sys_schemas,$app_schemas);
+		$schemas = !empty($sys_schemas)? array_merge($sys_schemas,$app_schemas):$app_schemas;
 		
+		//print_r($schemas);
 		foreach ($schemas as $file){
 			echo $file."\n";
 			$parts = explode("/",$file);
@@ -106,11 +107,11 @@ function migrate(){
 			$parts = explode(".", $file);
 			$schema = $parts[0];
 			echo $schema."\n";
-			Model::migration($schema);
+			db_migrate($schema);
 		}
-		echo "DONE";
+		echo "DONE\n";
 	}catch(Exception $e){
-		echo "FAILED";
+		echo "FAILED\n";
 	}
 	exit;
 }
