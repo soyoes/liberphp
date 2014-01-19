@@ -21,17 +21,17 @@
 		<article>
 			<h2>Tutorial</h2>
 			<ul>
-				<li>Installation</li>
-				<li>Hello world !</li>
-				<li>RESTful dispatching</li>
-				<li>DB & Model</li>
-				<li>Use Cache</li>
-				<li>Auth</li>
-				<li>Unit Test</li>
-				<li>Performance Test</li>
-				<li>What's Next?</li>
+				<li><a href="#@s_install">Installation</a></li>
+				<li><a href="#@s_hello">Hello world !</a></li>
+				<li><a href="#@s_restful">RESTful dispatching</a></li>
+				<li><a href="#@s_db_model">DB & Model</a></li>
+				<li><a href="#@s_cache">Use Cache</a></li>
+				<li><a href="#@s_auth">Auth</a></li>
+				<li><a href="#@s_test">Unit Test</a></li>
+				<li><a href="#@s_performance">Performance Test</a></li>
+				<li><a href="#@s_next">What's Next?</a></li>
 			</ul>
-			<section>
+			<section id="@s_install">
 				<header>Requirement</header>
 				<ul>
 					<li>PHP 5.4 (with APC, GD2, Memcache(Memcached), PDO, pdo-mysql ...) </li>
@@ -49,7 +49,7 @@
 					</li>
 				</ul>
 			</section>
-			<section>
+			<section id="@s_hello">
 				<header>Hello world</header>
 				<ol>
 					<li>Create project
@@ -119,7 +119,7 @@ port = 11211				#<- change to your own
 					<li>Try it by accessing http://YOUR_PROJECT_NAME.dev</li>
 				</ol>
 			</section>
-			<section>
+			<section id="@s_restful">
 				<header>RESTful dispatching</header>
 				<table>
 					<tr>
@@ -220,40 +220,123 @@ port = 11211				#<- change to your own
 				</div>
 				
 			</section>
-			<section>
+			<section id="@s_db_model">
 				<header>DB & Model</header>
 				<div>
 					<h4>DB Query</h4>
-					<code></code>
+					<code>
+/* 
+* if useCache == true
+* 	we will get result from Cache first.with $sql as key
+* 	if there is no data in cache. the result from db will be add to cache
+* @see <a>Use Cache</a> for more information
+*/
+$res = db_query($sql,$useCache=false); //$res is assoc-array 
+					</code>
 				</div>
 				<div>
 					<h4>DB Query With Condition</h4>
-					<code></code>
+					<code>
+/*
+* syntax : db_find(tablename, conditions);
+* @see <a href="index.php?f=DB.inc">DB.inc</a> for more information about conditions.
+*/
+$res = db_find("tasks", [
+	"@fields" => "id",
+	"regAt@>" => "2013-10-30",
+	"title@?" => "Milk",
+]);
+//=select id from tasks where regAt>'2013-10-30' and title like '%Milk%' 					
+					</code>
 					<h5>DB Query With Model</h5>
-					<code></code>
+					<code>
+$m = Model::factory("tasks");
+$res = $m->find(["regAt@>"=>'2013-10-30']);					
+					</code>
 				</div>
 				<div>
 					<h4>DB Insert & Update</h4>
-					<code></code>
+					<code>
+db_save('tasks',[title=>'My New Task'],true);
+//=insert into tasks (title,regAt) values('My New Task',$now);
+//returns [title='My New Task',id:5,regAt:$now]
+
+db_save('tasks',[id=>3, title=>'New title']);
+//=update tasks set title='New title' where id=3 					
+					</code>
 					<h5>DB Insert/Update With Model</h5>
-					<code></code>
+					<code>
+$m = Model::factory("tasks");
+$m->fetch(3); //fetch data where id=3
+$m->set("title","New Title With Model");
+$m->save(); 
+//=update tasks set title='New title With Model' where id=3 
+					
+					</code>
 				</div>
 				<div>
 					<h4>DB Insert Multiple Rows</h4>
-					<code></code>
+					<code>
+db_import("tasks",[
+	[title=>"task1"],
+	[title=>"task2",priority=>1],
+	[title=>"task3"]
+]);
+//=Insert into tasks (title,priority,regAt) 
+// values ("tasks1",0,$now),("tasks2",1,$now),("tasks3",0,$now) 					
+					</code>
 				</div>
 				<div>
 					<h4>DB Transaction</h4>
-					<code></code>
+					<code>
+$res = db_trans([
+	"insert into tasks (title) values ('my title')", 
+	"select LAST_INSERT_ID() as 'last_id'"
+]);
+$id = $res[0]["last_id"];
+//insert into db and get the last inserted id;
+//if there are errors, db->rollback will be called automatically
+					</code>
 				</div>
 			</section>
-			<section>
+			<section id="@s_cache">
 				<header>Use Cache</header>
+				<ul>
+				<li>We use both APC & Memcached as our cache system 
+				<code>
+Coming soon ...
+				</code>	
+				</li>
+				</ul>
 			</section>
-			<section>
+			<section id="@s_auth">
 				<header>Auth</header>
+				<ol>
+				<li>Under standing Filters
+					<code>
+If you have the exp of playing with J2EE servlet.
+You could be familiar with the following process.
+
+-> 1st filter->start()
+	-> 2nd filter->start()
+		-> nth filter->start()
+		 	-> CONTROLLER.inc :: ACTION($params)
+		-> nth filter->end()
+	-> 2nd filter->end()
+-> 1st filter->end()
+
+We Use Filters to check Auth
+					</code>
+				</li>
+				
+				<li>AuthFilter Example
+					<code>
+Coming soon ...
+					</code>				
+				</li>
+				</ol>
 			</section>
-			<section>
+			<section id="@s_test">
 				<header>Unit Test</header>
 				<ol>
 					<li>Create test case file under /test with a name of ${YOUR_CONTROLLER}.json</li> 
@@ -298,7 +381,7 @@ port = 11211				#<- change to your own
   					<li>Debug with URL of /${YOUR_CONTROLLER}/test_${YOUR_ACTION}, without any parameters!.</li>
 				</ol>
 			</section>
-			<section>
+			<section id="@s_performance">
 				<header>Performance Test</header>
 				<p>Test tool : ApacheBench</p>
 				<code>&gt; ab -c 100 -n 10000 URL</code>
@@ -330,9 +413,9 @@ port = 11211				#<- change to your own
 						<td>test.php is under DocumentRoot/liberProj/<br>No session</td>
 					</tr>
 					<tr>
-						<td>liberPHP</td>
+						<td><b>liberPHP</b></td>
 						<td>/top/test</td>
-						<td>41ms</td>
+						<td><b>41</b>ms</td>
 						<td>Init Constants (2ms-7ms, APC)<br>
 							Load config file (2ms-7ms, ini -> APC)<br>
 							Dispatching (3ms-8ms)<br>
@@ -342,15 +425,15 @@ port = 11211				#<- change to your own
 							</td>
 					</tr>
 					<tr>
-						<td>liberPHP with Smarty</td>
+						<td><b>liberPHP</b> with Smarty</td>
 						<td>/top/test</td>
-						<td>71ms</td>
+						<td><b>71</b>ms</td>
 						<td>Use Smarty to render HTML</td>
 					</tr>
 					<tr>
-						<td>CakePHP with Smarty</td>
+						<td><b>CakePHP</b> with Smarty</td>
 						<td>/top/test</td>
-						<td>Timeout<br>10371ms (c=100,n=100)</td>
+						<td><b>Timeout</b><br><b>10371</b>ms (c=100,n=100)</td>
 						<td>Use Smarty to render HTML<br>
 							With default performance options,<br>
 							Using .htaccess(default)<br>
@@ -359,7 +442,7 @@ port = 11211				#<- change to your own
 					</tr>
 				</table>
 			</section>
-			<section>
+			<section id="@s_next">
 				<header>What's Next?</header>
 			</section>
 		<footer> @Author : soyoes 2014</footer>
