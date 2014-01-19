@@ -13,4 +13,9 @@ window.onload = function(){
 			}
 		});
 	
+	var res = document.getElementsByTagName("code");
+	for(var i=0;i<res.length;i++)
+		res[i].innerHTML = res[i].innerHTML.toString().replace(/\n/g,"<br>").replace(/<br>/,"").replace(/\t/g,"&nbsp;&nbsp;&nbsp;&nbsp;");
+	
+	
 }

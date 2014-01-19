@@ -24,7 +24,8 @@
 				<li>Installation</li>
 				<li>Hello world !</li>
 				<li>RESTful dispatching</li>
-				<li>DB & Cache</li>
+				<li>DB & Model</li>
+				<li>Use Cache</li>
 				<li>Auth</li>
 				<li>Unit Test</li>
 				<li>Performance Test</li>
@@ -33,40 +34,330 @@
 			<section>
 				<header>Requirement</header>
 				<ul>
-					<li>PHP 5.4 (with APC, GD2, Memcache(Memcached), PDO ...) </li>
+					<li>PHP 5.4 (with APC, GD2, Memcache(Memcached), PDO, pdo-mysql ...) </li>
 					<li>Memcached</li>					
 					<li>Smarty (optional)</li>					
 				</ul>
 				<header>Installation</header>
 				<ul>
-					<li>PHP 5.4 (with APC, GD2, Memcache(Memcached), PDO ...) </li>
-					<li>Memcached</li>					
-					<li>Smarty (optional)</li>					
+					<li>Check out from <a href="https://github.com/soyoes/liberphp2">here</a><br> 
+						<code>
+&gt; cd YOUR_HTTP_DOCUMENT_ROOT
+&gt; git clone git@github.com:soyoes/liberphp2.git liberphp2
+&gt; sudo ln -s liberphp2/liberphp.php /usr/bin/liberphp
+						</code>
+					</li>
 				</ul>
 			</section>
 			<section>
 				<header>Hello world</header>
 				<ol>
-					<li>Check out from here</li>
+					<li>Create project
+						<code>
+&gt; cd YOUR_HTTP_DOCUMENT_ROOT # e.g. /var/www/html
+&gt; liberphp create myproj
+						</code>
+					</li>
+					<li>Check out Smarty (http://www.smarty.net/download) 
+	 						to YOUR_PROJECT_PATH/lib/smarty
+					</li>
+					<li>Configurations
+						<code>
+&gt; vi conf/conf.ini
+						</code>
+						Change the following lines
+						<code>
+[APP]
+...
+lib_dir = "YOUR_LIBERPHP_PATH"		#<- change to your own path 
+smarty_dir = "HTTP_DOCUMENT_ROOT/myproj/lib/smarty/"	#<- change to your own
+...
+[DB]
+engine = MySQL
+host = localhost			#<- change to your own
+port = 3306
+db = tasks					#<- change to your own
+user = root					#<- change to your own
+pass = root					#<- change to your own
+
+[Cache]
+engine = Memcached			
+hosts = localhost			
+port = 11211				#<- change to your own
+						</code>
+					</li>
+					<li>DB migration (Option)
+					<code>
+&gt; liberphp migrate
+					</code>
+					</li>
 					
-					<li>Create project</li>
-					<li>Configurations</li>
+					<li>Update you Apache configuration<br>
+						 Add these rows to your httpd.conf (or extra/httpd-vhosts.conf)
+						<code>
+&lt;VirtualHost *:80&gt;
+    DocumentRoot "YOUR_PROJECT_PATH"
+    Options FollowSymLinks
+    ServerName YOUR_PROJECT_NAME.dev
+    RewriteEngine on
+    RewriteRule  images/(.*)$ /webroot/images/$1  [L]
+    RewriteRule  css/(.*)$ /webroot/css/$1    [L]
+    RewriteRule  js/(.*)$ /webroot/js/$1    [L]
+    RewriteRule  font/(.*)$ /webroot/font/$1    [L]
+    RewriteRule  ^(.*)\.html$ /webroot/html/$1.htm    [L]
+    RewriteRule !\.(php|svg|ttf|htc|ico|gif|png|jpg|jpeg|css|js|swf|html|htm|json)$ /index.php?__URL__=%{REQUEST_URI} [QSA,NE,L]<br>
+&lt;/VirtualHost&gt;
+						</code>
+					</li>
+					<li>Add virtural host IP to your hosts file
+					<code> 
+# /etc/hosts
+127.0.0.1		YOUR_PROJECT_NAME.dev
+					</code>
+					</li>
+					<li>Restart your apache</li>
+					<li>Try it by accessing http://YOUR_PROJECT_NAME.dev</li>
 				</ol>
 			</section>
 			<section>
 				<header>RESTful dispatching</header>
+				<table>
+					<tr>
+						<th>URI<br>Pattern</th>
+						<th>HTTP<br>Method</th>
+						<th>Delegate<br>File</th>
+						<th>Delegate<br>Function</th>
+					</tr>
+					<tr>
+						<td>[/PATH]/CONTROLLER_NAME[/ID]</td>
+						<td>
+							GET<br>
+							POST<br>
+							PUT<br>
+							DELETE
+						</td>
+						<td>controllers/CONTROLLER_NAME.inc</td>
+						<td>
+							get($params) <samp >//@see <a href="#@rest_example_1">example_1</a></samp><br>
+							post($params) <samp >//@see <a href="#@rest_example_2">example_2</a></samp><br>
+							put($params)<br>
+							delete($params)<br>
+						</td>
+					</tr>
+					<tr>
+						<td>[/PATH]/CONTROLLER_NAME[/ID]/ACTION_NAME[/ID]</td>
+						<td>
+							GET<br>
+							POST<br>
+							PUT<br>
+							DELETE
+						</td>
+						<td>controllers/CONTROLLER_NAME.inc</td>
+						<td>ACTION_NAME($params) <samp >//@see <a href="#@rest_example_3">example_3</a></samp></td>
+					</tr>
+					<tr>
+						<td>/@SCHEMA_NAME[/ID]</td>
+						<td>
+							GET<br>
+							POST<br>
+							PUT<br>
+							DELETE
+						</td>
+						<td>restful/SCHEMA_NAME.inc
+							<br>(Optional, you can do auth check or filtering here)</td>
+						<td>
+							get($params) <samp >//Optional, @see <a href="#@rest_example_4">example_4</a></samp><br>
+							post($params) <samp >//Optional, @see <a href="#@rest_example_5">example_5</a></samp><br>
+							put($params) <samp >//Optional, @see <a href="#@rest_example_6">example_6</a></samp><br>
+							delete($params) //Optional<br>
+						</td>
+					</tr>
+				</table>
+				
+				<div id="@rest_example_1" class="example">
+					<h4>Example_1 : Call controller with default action using GET method</h4>
+					<p>Given that the URI = /mycontroller?id=1&name=sss</p>
+					<p>Your controller file (path = controllers/mycontroller.inc) </p>
+					<code>
+&lt;?php
+	function get($params){
+		//all request parameters are encapsulated in $params
+		render_json($params);
+		//also you can use render_html(with smarty) 
+		//or render_text to send plain text 
+	}
+?&gt;
+					</code>
+					<p>The result will be : </p>
+					<code>
+{"id":1,"name":"sss"}
+					</code>
+				</div>
+				<div id="@rest_example_2" class="example">
+					<h4>Example_2 : Call controller with default action using POST method</h4>
+					<code>
+					</code>
+				</div>
+				<div id="@rest_example_3" class="example">
+					<h4>Example_3 : Call controller with action name</h4>
+					<code>
+					</code>
+				</div>
+				<div id="@rest_example_4" class="example">
+					<h4>Example_4 : Use automatical RESTful mechanism to GET data</h4>
+					<code>
+					</code>
+				</div>
+				<div id="@rest_example_5" class="example">
+					<h4>Example_5 : Use automatical RESTful mechanism to POST new record</h4>
+					<code>
+					</code>
+				</div>
+				<div id="@rest_example_6" class="example">
+					<h4>Example_6 : Use automatical RESTful mechanism to Update record</h4>
+					<code>
+					</code>
+				</div>
+				
 			</section>
 			<section>
-				<header>DB & Cache</header>
+				<header>DB & Model</header>
+				<div>
+					<h4>DB Query</h4>
+					<code></code>
+				</div>
+				<div>
+					<h4>DB Query With Condition</h4>
+					<code></code>
+					<h5>DB Query With Model</h5>
+					<code></code>
+				</div>
+				<div>
+					<h4>DB Insert & Update</h4>
+					<code></code>
+					<h5>DB Insert/Update With Model</h5>
+					<code></code>
+				</div>
+				<div>
+					<h4>DB Insert Multiple Rows</h4>
+					<code></code>
+				</div>
+				<div>
+					<h4>DB Transaction</h4>
+					<code></code>
+				</div>
+			</section>
+			<section>
+				<header>Use Cache</header>
 			</section>
 			<section>
 				<header>Auth</header>
 			</section>
 			<section>
 				<header>Unit Test</header>
+				<ol>
+					<li>Create test case file under /test with a name of ${YOUR_CONTROLLER}.json</li> 
+  					<li>Add test case to /test/${YOUR_CONTROLLER}.json<br>
+  						Example:<br>
+  						<code>
+{
+"add":[
+	{
+		"method":"GET",
+		"params":{
+			"uid":"abcdef",
+			"data":[
+				"movie_1009_1315480852_1315780852",
+				"shows_1007_1315880852_1316080852"
+			]	
+		}
+	}
+],
+"update":[
+	{
+		"method":"GET",
+		"params":{
+			"uid":"abcdef",
+			"data":[
+				"1_test_1009_1315480852_1315780852",
+				"2_test_1007_1315880852_1316080852"
+			]
+		}
+	},
+	{
+		"method":"GET",
+		"params":{
+			"uid":"abcdef",
+			"data":"1_test_1009_1315480852_1315780852"
+		}
+	}
+]
+}
+  						</code>
+  					</li>
+  					<li>Debug with URL of /${YOUR_CONTROLLER}/test_${YOUR_ACTION}, without any parameters!.</li>
+				</ol>
 			</section>
 			<section>
 				<header>Performance Test</header>
+				<p>Test tool : ApacheBench</p>
+				<code>&gt; ab -c 100 -n 10000 URL</code>
+				<table>
+					<tr>
+						<th>Pattern</th>
+						<th>Example URL</th>
+						<th>Average Response Time</th>
+						<th>Description</th>
+					</tr>
+					<tr>
+						<td>Direct access to php file</td>
+						<td>/test.php</td>
+						<td>8ms</td>
+						<td>test.php is under DocumentRoot<br>
+							No session
+						</td>
+					</tr>
+					<tr>
+						<td>php file with apache rewrite</td>
+						<td>/test.php</td>
+						<td>13ms</td>
+						<td>test.php is under DocumentRoot/mypath<br>No session</td>
+					</tr>
+					<tr>
+						<td>php file under liberPHP</td>
+						<td>/test.php</td>
+						<td>14ms</td>
+						<td>test.php is under DocumentRoot/liberProj/<br>No session</td>
+					</tr>
+					<tr>
+						<td>liberPHP</td>
+						<td>/top/test</td>
+						<td>41ms</td>
+						<td>Init Constants (2ms-7ms, APC)<br>
+							Load config file (2ms-7ms, ini -> APC)<br>
+							Dispatching (3ms-8ms)<br>
+							Load & exec Filters(1ms - 3ms)<br>
+							Session start (10ms, memcached base)<br>
+							Use echo to write HTML code.
+							</td>
+					</tr>
+					<tr>
+						<td>liberPHP with Smarty</td>
+						<td>/top/test</td>
+						<td>71ms</td>
+						<td>Use Smarty to render HTML</td>
+					</tr>
+					<tr>
+						<td>CakePHP with Smarty</td>
+						<td>/top/test</td>
+						<td>Timeout<br>10371ms (c=100,n=100)</td>
+						<td>Use Smarty to render HTML<br>
+							With default performance options,<br>
+							Using .htaccess(default)<br>
+							And there is no error on the page.
+						</td>
+					</tr>
+				</table>
 			</section>
 			<section>
 				<header>What's Next?</header>
