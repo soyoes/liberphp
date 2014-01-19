@@ -45,8 +45,10 @@ section.cls{
 }
 section.cls b{color:rgb(232,76,61);}
 
+/*
 section ul>li{list-style:none;}
 section li{line-height:28px;position:relative;}
+*/
 section li > label{display:inline-block;min-width:120px;white-space:nowrap;}
 
 section dfn{font-style:normal;color:black;padding-left:5px; padding-right:5px;}
@@ -65,7 +67,9 @@ section > div.notmethod:before{background-color:rgb(236,240,241);}
 section > div.static > dfn{font-style:italic;font-weight:400;}
 section > div.example:before{background-color:rgb(236,240,241);}
 .nodoc{color:red;}
-section.func li{overlow:hidden;display:block;}
+section.func {overflow:hidden;}
+section.func ul{overflow:hidden;}
+section.func li{line-height:28px;overflow:hidden;list-style:none;}
 
 table{border-top:1px solid #ccc;border-right:1px solid #ccc;
 	border-collapse:collapse;margin:20px;margin-bottom:30px;}
