@@ -12,6 +12,7 @@ $render_contents = [];
 $render_layout = "_layout.html";
 
 include_once "DB.inc";
+include_once "Caches.inc";
 
 /**
  * Core function, all requests URLs are dispatched here. 
@@ -49,7 +50,6 @@ function dispatch(){
 		}
 		//show
 		if(!isset($_REQUEST["RESPONSE_BODY"])){
-			error_log("start render_html");
 			render_html();
 		}
 		echo $_REQUEST["RESPONSE_BODY"];
@@ -91,6 +91,7 @@ function parse_uri(){
 		//TODO redirect ?
 		$_REQUEST["uri"] = "/webroot".$uri.".$ext";
 	}
+	
 }
 
 function parse_rest_uri(){
@@ -113,14 +114,24 @@ function parse_rest_uri(){
 	$resources = load_resources();
 	
 	list($namespace, $controller, $action) =
-		["",defined(DEFAULT_CONTROLLER)?DEFAULT_CONTROLLER:"top",defined(DEFAULT_ACTION)?DEFAULT_ACTION:$method];
+		["",defined(APP_DEFAULT_CONTROLLER)?APP_DEFAULT_CONTROLLER:"top",defined(APP_DEFAULT_ACTION)?APP_DEFAULT_ACTION:$method];
 	$len = count($uparts);
 	
-	if(in_array($uri,$resources["namespaces"])){//default controller
+	
+	/*
+	error_log("uri=$uri,ns=$namespace;ctrl=$controller;act=$action");
+	error_log(json_encode($resources));
+	*/
+	
+	if($uri==""){
+		$uri=$controller;
+		$_REQUEST["uri"] = $uri;
+	}else if(in_array($uri,$resources["namespaces"])){//default controller
 		$namespace = $uri;
 	}else if(in_array($uri,$resources["controllers"])){//controller exist with default action
 		$namespace = join("/",array_slice($uparts, 0 , $len-1));
 		$controller = $uparts[$len-1];
+		error_log("CTRL : ns=$namespace;ctrl=$controller;act=$action");
 	}else if(in_array(join("/",array_slice($uparts, 0 , $len-1)),$resources["controllers"])){//controller exist with action
 		$namespace = join("/",array_slice($uparts, 0 , $len-2));
 		$controller = $uparts[$len-2];
@@ -174,7 +185,7 @@ function parse_user_agent(){
  * Preload all schemas, controllers with APC 
  */
 function load_resources(){
-	$resources = Cache::get("APP_RESOURCES", function($key){
+	$resources = cache_get("APP_RESOURCES", function($key){
 		exec("find ".CTRL_DIR,$res);
 		$namespaces = array_unique(array_map(function($e){
 			return strtolower(preg_replace(["/^".str_replace("/","\/",CTRL_DIR)."/",'/\/(.*)\.inc$/',"/^\//"],["","",""], $e));
@@ -187,7 +198,7 @@ function load_resources(){
 			return strtolower(preg_replace(["/^".str_replace("/","\/",SCHEMA_DIR)."/",'/\.ini$/',"/^\//"],["","",""], $e));
 		},$res2));
 		return ["namespaces" => Arrays::remove($namespaces, ""), "controllers" => Arrays::remove($controllers, ""), "schemas"=>Arrays::remove($schemas, "")];
-	});
+	},false);
 	return $resources;
 }
 

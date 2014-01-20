@@ -105,7 +105,7 @@ function db_conn($opts=null){
 function db_query($sql, $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
 	try {
 		if ($useCache) {
-			$value = Cache::get($sql);
+			$value = cache_get($sql);
 			if (isset ( $value ) && $value != false)
 				return $value;
 		}
@@ -117,7 +117,7 @@ function db_query($sql, $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
 		}
 		$res = $statement->fetchAll($PDOOpt);
 		if ($useCache && $res != null) {
-			Cache::set($key, $res);
+			cache_set($key, $res);
 		}
 		return $res;
 	} catch ( PDOException $e ) {
@@ -147,7 +147,7 @@ function db_exec($sql){
 function db_count($sql=null, $useCache=false){
 	try {
 		if($useCache){
-			$value = Cache::get($sql);
+			$value = cache_get($sql);
 			if(isset($value) && $value!=false)
 				return $value;
 		}
@@ -157,7 +157,7 @@ function db_count($sql=null, $useCache=false){
 		$sth->execute();
 		$res = $sth->fetchColumn();
 		if($useCache && $res){
-			Cache::set($sql, $res);
+			cache_set($sql, $res);
 		}
 		return intval($res);
 	} catch (PDOException $e) {
@@ -427,7 +427,7 @@ function db_save($table, $data, $returnId=false, $bson=false){
 	$sql = "";
 	$isUpdate = isset($id) && db_exists($table, $id);
 	if ($isUpdate){	//update
-		Cache::del($table."_".$id);
+		cache_del($table."_".$id);
 		foreach ($data as $col => $val){
 			if($col==$pk || !isset($schema[$col]))continue;
 			if(!empty($colStmt))$colStmt .= ",";
@@ -465,7 +465,7 @@ function db_save($table, $data, $returnId=false, $bson=false){
  * load schema configuration data from SCHEMA_DIR/$schemaName.ini using APC cache.
  * */
 function db_schema($schemaName){
-	$schemaDef = Cache::get("SCHEMA_$schemaName", function($key){
+	$schemaDef = cache_get("SCHEMA_$schemaName", function($key){
 		$schemaname = str_replace("SCHEMA_","",$key);
 		$schemaDef = @parse_ini_file(SCHEMA_DIR.$schemaname.".ini", true);
 		if(!$schemaDef){
@@ -473,7 +473,7 @@ function db_schema($schemaName){
 			$schemaDef = @parse_ini_file(LIBER_DIR."common/schemas/".str_replace("liber_","",$schemaname).".ini", true);
 		}
 		return $schemaDef;
-	});
+	},false);
 	return $schemaDef;
 }
 
