@@ -30,7 +30,7 @@ dt, dd{line-height:24px;}
 
 article{
 	float:left;width:900px;
-	overflow:hidden;
+	overflow:hidden;position:relative;
 }
 section{
 	margin-top:5px;

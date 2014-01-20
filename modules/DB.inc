@@ -6,25 +6,6 @@
  *	@example: 
  *****************************************************************************/
 
-/*TODO
- 
- test db_find
- test db_find1st
- test db_save
- test db_delete
- test db_update
- 
- test db_trans
- test db_import
- 
- test model::factory
- test model::save
- 
- * 
- * 
- * 
- */
-
 if (!apc_load_constants("DB_FMTS")){
 	apc_define_constants("DB_FMTS", [
 	'FORMAT_CREATE_DB' 			 => "CREATE TABLE `%s`.`%s` ( %s PRIMARY KEY (`%s`)) ENGINE=InnoDB %s DEFAULT CHARSET=utf8;",
@@ -181,6 +162,23 @@ function db_attr($attr, $val){
  * query db with data options
  * @param $table : tablename
  * @param $opts : @see db_make_query
+ * 		KEY|KEY@= 	= 	eq, equals
+		KEY@!		= 	ne, not equals
+		KEY@<		= 	lt, less than
+		KEY@>		= 	gt, greater than
+		KEY@<=		= 	le, less than or equals
+		KEY@>=		= 	ge, greater than or equals
+		KEY@[]		= 	in, sql in clause
+		KEY@![]		= 	not in, sql not in clause
+		KEY@()		= 	between
+		KEY@!()		= 	not between
+		KEY@?		= 	like, sql like '%YOUR_VALUE%'
+		KEY@!?		= 	not like, sql not like '%YOUR_VALUE%'
+		KEY@~		= 	regexp match, mysql | postgres
+		KEY@!~		= 	regexp not match , mysql | postgres
+		KEY@~~		= 	regexp match ignore case, mysql | postgres
+		KEY@!~~		= 	regexp not match ignore case, mysql | postgres
+ * 
  * @param $withCount: whether result contains total matched amount
  *  
  * @example : db_find("tasks", [
