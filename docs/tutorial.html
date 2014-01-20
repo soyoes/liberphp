@@ -196,26 +196,105 @@ port = 11211				#<- change to your own
 				<div id="@rest_example_2" class="example">
 					<h4>Example_2 : Call controller with default action using POST method</h4>
 					<code>
+#in your html with jquery 
+&lt;script&gt;
+$.post('/mycontroller',{id:1,title:"blah blah..."});
+&lt;/script&gt;
+
+#in your controllers/mycontroller.inc
+&lt;?php
+...
+	function post($params){
+		//all request parameters are encapsulated in $params
+		render_json($params); //params = {id:1,title:"blah blah..."}
+	}
 					</code>
 				</div>
 				<div id="@rest_example_3" class="example">
 					<h4>Example_3 : Call controller with action name</h4>
 					<code>
+# call mycontroller/myaction?name=php
+# in your controllers/mycontroller.inc
+&lt;?php
+...
+	function myaction($params){
+		render_text($params["name"]);
+	}
+#the result will be "php"
 					</code>
 				</div>
 				<div id="@rest_example_4" class="example">
 					<h4>Example_4 : Use automatical RESTful mechanism to GET data</h4>
 					<code>
+#Get newest 20 tasks from tasks table
+&gt; curl http://myproj.dev/@tasks?order=desc&sort=updAt&limit=20
+
+#Get tasks that title like '%test%' and register after 2013-10-30
+&gt; curl http://myproj.dev/@tasks?title@like=test&amp;regAt@gt=2013-10-30
+
+#Get task with id=35
+&gt; curl http://myproj.dev/@tasks/35
+
+#you don't need to write server code, liberPHP does this for you.
 					</code>
 				</div>
 				<div id="@rest_example_5" class="example">
 					<h4>Example_5 : Use automatical RESTful mechanism to POST new record</h4>
 					<code>
+#in your html with jquery 
+&lt;script&gt;
+$.post('/@tasks',{title:"blah blah..."});
+&lt;/script&gt;
+
+#the result will be 
+{id:75, title:"blah blah... "} //75 is the last insert id
+
+#you don't need to write server code, liberPHP does this for you.
 					</code>
 				</div>
 				<div id="@rest_example_6" class="example">
 					<h4>Example_6 : Use automatical RESTful mechanism to Update record</h4>
 					<code>
+#in your html with jquery 
+&lt;script&gt;
+$.put('/@tasks/75',{title:"blah new"}); //you must use PUT method here
+&lt;/script&gt;
+
+#the result will be 
+{id:75, title:"blah new"} 
+
+#you don't need to write server code, liberPHP does this for you. 
+					</code>
+				</div>
+				<div id="@rest_example_7" class="example">
+					<h4>Example_7 : Use automatical RESTful mechanism with filter</h4>
+					<p>if you want to do permision check upon auto RESTful request<br>
+						you may just simply add delegate methods under /restful/YOUR_SCHEMA.inc
+					</p>
+					
+					<code>
+#in your html with jquery 
+&lt;script&gt;
+$.put('/@tasks/75',{title:"blah new"}); //you must use PUT method here
+&lt;/script&gt;
+
+#in your restful/tasks.inc
+&lt;?php
+
+/**
+* Delegate method, 
+* the name must obey the rules of rest_{SCHEMA_NAME}_{METHOD_NAME}
+* @param $table: tablename
+* @param $params: http request params
+*/
+function rest_tasks_post($table, $params){ 
+	if(!isset($_SESSION["userId"])) //e.g. for login user only
+		return false;
+	return true;
+}
+
+#if the is not loged in then the result will be 
+{code:401, message:"RESTful ERROR : Sorry, You are not permited to do that."} 
 					</code>
 				</div>
 				

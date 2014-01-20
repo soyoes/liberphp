@@ -20,6 +20,7 @@ include_once "Caches.inc";
 function dispatch(){
 	parse_uri();
 	try{
+		
 		$req = $_REQUEST;
 		$filters = $req["filters"];
 		$size = count($filters);
@@ -52,12 +53,12 @@ function dispatch(){
 		if(!isset($_REQUEST["RESPONSE_BODY"])){
 			render_html();
 		}
-		echo $_REQUEST["RESPONSE_BODY"];
+		//echo $_REQUEST["RESPONSE_BODY"];
 	}catch(Exception $e){
 		error_log("exec exception");
 		print $e->getMessage();
 	}
-	echo $response;
+	//echo $response;
 	exit;
 }
 	
@@ -85,8 +86,8 @@ function parse_uri(){
 		$_REQUEST["uri"] = $uri;
 		$_REQUEST["params"] = $params;
 		if($specifiedFmt) $_REQUEST["@format"] = $ext;
-		parse_rest_uri();
 		parse_user_agent();
+		parse_rest_uri();
 	}else{//static
 		//TODO redirect ?
 		$_REQUEST["uri"] = "/webroot".$uri.".$ext";
@@ -110,18 +111,17 @@ function parse_rest_uri(){
 	unset($params["__URL__"]);
 	
 	$_REQUEST["params"] = $params;
-	
 	$resources = load_resources();
 	
 	list($namespace, $controller, $action) =
 		["",defined(APP_DEFAULT_CONTROLLER)?APP_DEFAULT_CONTROLLER:"top",defined(APP_DEFAULT_ACTION)?APP_DEFAULT_ACTION:$method];
 	$len = count($uparts);
-	
-	
 	/*
 	error_log("uri=$uri,ns=$namespace;ctrl=$controller;act=$action");
 	error_log(json_encode($resources));
 	*/
+	if(empty($uparts)){$uparts=[$controller,$action];}
+	if(count($uparts)==1)$uparts[]=$action;
 	
 	if($uri==""){
 		$uri=$controller;
@@ -131,7 +131,7 @@ function parse_rest_uri(){
 	}else if(in_array($uri,$resources["controllers"])){//controller exist with default action
 		$namespace = join("/",array_slice($uparts, 0 , $len-1));
 		$controller = $uparts[$len-1];
-		error_log("CTRL : ns=$namespace;ctrl=$controller;act=$action");
+		//error_log("CTRL : ns=$namespace;ctrl=$controller;act=$action");
 	}else if(in_array(join("/",array_slice($uparts, 0 , $len-1)),$resources["controllers"])){//controller exist with action
 		$namespace = join("/",array_slice($uparts, 0 , $len-2));
 		$controller = $uparts[$len-2];
@@ -145,12 +145,16 @@ function parse_rest_uri(){
 				$_REQUEST["@schema"] = $uri;  
 				$action = $method;
 			}
+		}else if(in_array($_REQUEST["client_type"]."/".join("_",$uparts),$resources["views"])){//has view template file
+			//error_log($_REQUEST["client_type"]."/".join("_",$uparts).".html");
+			render_html(join("_",$uparts).".html");
+			exit;
 		}else error(400);
 	}
 	$_REQUEST["namespace"] = $namespace;
 	$_REQUEST["controller"] = $controller;
 	$_REQUEST["action"] = $action;
-	error_log("ns=$namespace, ctrl=$controller, act=$action");
+	//error_log("ns=$namespace, ctrl=$controller, act=$action");
 }
 
 function parse_user_agent(){
@@ -178,7 +182,7 @@ function parse_user_agent(){
 		$type = "imgbot";
 	$_REQUEST["client_type"] = $type;
 	$_REQUEST["view_template_type"] = Strings::contains(CLINET_TYPES, "|$type|") ? $type:"pc";
-	error_log("client_type = ".$_REQUEST["client_type"]);
+	//error_log("client_type = ".$_REQUEST["client_type"]);
 }
 
 /**
@@ -197,7 +201,12 @@ function load_resources(){
 		$schemas = array_unique(array_map(function($e){
 			return strtolower(preg_replace(["/^".str_replace("/","\/",SCHEMA_DIR)."/",'/\.ini$/',"/^\//"],["","",""], $e));
 		},$res2));
-		return ["namespaces" => Arrays::remove($namespaces, ""), "controllers" => Arrays::remove($controllers, ""), "schemas"=>Arrays::remove($schemas, "")];
+		exec("find ".VIEW_DIR,$res3);
+		$views = array_unique(array_map(function($e){
+			return strtolower(preg_replace(["/^".str_replace("/","\/",VIEW_DIR)."/",'/\.html$/',"/^\//"],["","",""], $e));
+		},$res3));
+		return ["namespaces" => Arrays::remove($namespaces, ""), "controllers" => Arrays::remove($controllers, ""),
+		 		"schemas"=>Arrays::remove($schemas, ""),"views"=>Arrays::remove($views, ["","pc","sm","bot","ibot","pad"])];
 	},false);
 	return $resources;
 }
@@ -239,7 +248,6 @@ function process($useSession=true){
 				}
 			}
 		};
-
 		if(function_exists($action)){//normal request
 			$exec($action);
 		}else if(Strings::startsWith($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
@@ -374,7 +382,7 @@ function render_template($templateName=NULL, $datas=array()){
 	//$this->assign("controller", $this->controller);
 	if(!Strings::endsWith($templateName, ".html") && !Strings::endsWith($templateName, ".html"))
 		$templateName = $_REQUEST["controller"].'_'.$templateName.'.html';
-
+	error_log($render_path."/".$templateName);
 	if(file_exists($render_path."/".$templateName))
 		$render_contents[] = $render->fetch($templateName);
 }
@@ -400,16 +408,19 @@ function render_html($templateName=NULL, $datas=array()){
 	$_REQUEST["RESPONSE_BODY"]=$html;
 	if(isset($_REQUEST["after_wrapper"]))
 		after_wrapper($_REQUEST["params"]);
+	echo $html;
 }
 
 function render_json($data,$code="200"){
 	$_REQUEST["RESPONSE_TYPE"]="application/json";
 	$_REQUEST["RESPONSE_BODY"]=json_encode($data);
+	echo $_REQUEST["RESPONSE_BODY"];
 }
 
 function render_text($text,$code="200"){
 	$_REQUEST["RESPONSE_TYPE"]="text/plain";
 	$_REQUEST["RESPONSE_BODY"]=$text;
+	echo $text;
 }
 
 function render_default_template(){
@@ -418,6 +429,7 @@ function render_default_template(){
 		$path .= "/".str_replace(".","/",$_REQUEST["namespace"]);
 	}
 	$template_file = $_REQUEST["controller"].'_'.$_REQUEST["action"].'.html';
+	error_log($template_file);
 	if(file_exists($path."/".$template_file)){
 		render_html($template_file);
 	}else{
