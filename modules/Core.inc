@@ -5,431 +5,102 @@
  *	@uses: Core functions of dispatching, rendering.
  *****************************************************************************/
 
-$db = null;
-$render = null;
-$render_path = null;
-$render_contents = [];
-$render_layout = "_layout.html";
 
 include_once "DB.inc";
 include_once "Caches.inc";
 
 /**
- * Core function, all requests URLs are dispatched here. 
+ * Get APP config
  */
-function dispatch(){
-	parse_uri();
-	try{
-		
-		$req = $_REQUEST;
-		$filters = $req["filters"];
-		$size = count($filters);
-		$filterCls = [];
-		for ($token=$size*(-1); $token<=$size; $token++){
-			if(true==$req["INTERRUPTED"])
-				break;
-			if ($token == 0){//Exec controller->actions
-				if(isset($_REQUEST["@schema"])){
-					rest_process();					
-				}else{
-					process();
-				}
-			}else if($size>0){//Exec filters
-				$nextIdx = $token < 0 ? $size + $token : $size - $token ;
-				$filterName = $filters[$nextIdx];
-				if(!empty($filterName)){
-					$filter = array_key_exists($filterName, $filterCls)? $filterCls[$filterName]: Filter::factory($filterName);
-					if(!array_key_exists($filterName, $filterCls)){
-						$filterCls[$filterName] = $filter;
-					}
-					($token<0) ? $filter->before() : $filter->after();
-				}
+function get_conf($key_path=null,$defaultValue=null){
+	$conf = cache_get($key, function($key){
+		$content = parse_ini_file(APP_DIR.__SLASH__.'conf'.__SLASH__.'conf.ini', true);
+		$conf = [];
+		foreach($content as $seg=>$items){
+			foreach($items as $key=>$value){
+				$name = strtoupper($seg."_".$key);
+				$conf[$name] = $value;
 			}
 		}
-		if(isset($_REQUEST["redirect"])){
-			redirect($_REQUEST["redirect"]);
-		}
-		//show
-		if(!isset($_REQUEST["RESPONSE_BODY"])){
-			render_html();
-		}
-		//echo $_REQUEST["RESPONSE_BODY"];
-	}catch(Exception $e){
-		error_log("exec exception");
-		print $e->getMessage();
+		return $conf;
+	});
+	if (isset($key_path)){
+		return ($conf[strtoupper($key_path)])?$conf[strtoupper($key_path)]:$defaultValue;
 	}
-	//echo $response;
-	exit;
+	return $conf;
 }
-	
-
-function parse_uri(){
-	//if(!STAND_ALONE)$_SERVER["REQUEST_URI"]=$_REQUEST["url"];
-	$host =$_SERVER["SERVER_NAME"];
-	$uri =$_SERVER["REQUEST_URI"];
-	$uri = preg_replace(['/\sHTTP.*/','/(\/)+/','/\/$/','/^[a-zA-Z0-9]/'], ['',"/","","/$1"], $uri);
-	//error_log($_SERVER["REQUEST_URI"]." host=$host url=$uri");
-	$parts = parse_url("http://".$host.$uri);
-	$uri = $parts["path"];
-	$fmts = ['json','bson','text','html','csv'];
-	$params = ["@format"=>in_array($_REQUEST["format"], $fmts)?$_REQUEST["@format"]:"html"];
-	if(isset($parts["query"]))
-		parse_str($parts["query"],$params);
-	list($uri, $ext) = explode(".", $uri);
-	$specifiedFmt = in_array($ext,$fmts);
-	if($ext==1||$ext==""||$specifiedFmt){//action
-		preg_match_all('/\/(?P<digit>\d+)\/*/', $uri, $matches);
-		if(!Arrays::isEmpty($matches["digit"])){
-			$params["@id"] = (int)$matches["digit"][0];
-			$uri = preg_replace("/\/\d+\/*/", "", $uri);
-		}
-		$_REQUEST["uri"] = $uri;
-		$_REQUEST["params"] = $params;
-		if($specifiedFmt) $_REQUEST["@format"] = $ext;
-		parse_user_agent();
-		parse_rest_uri();
-	}else{//static
-		//TODO redirect ?
-		$_REQUEST["uri"] = "/webroot".$uri.".$ext";
-	}
-	
-}
-
-function parse_rest_uri(){
-	$uri = preg_replace("/^\//","",$_REQUEST["uri"]);
-	$uparts =Arrays::remove(explode("/",$uri), "");
-	
-	$method = strtolower($_SERVER["REQUEST_METHOD"]);
-	
-	$params = $_REQUEST["params"];
-	if ($method == "put" || $method == "delete") {
-		parse_str(file_get_contents('php://input'), $params);
-	}
-	$target =($method=="post"||$method=="put")?$_POST: $_GET;
-	foreach($target as $k=>$v)
-		$params[$k] = $v;
-	unset($params["__URL__"]);
-	
-	$_REQUEST["params"] = $params;
-	$resources = load_resources();
-	
-	list($namespace, $controller, $action) =
-		["",defined(APP_DEFAULT_CONTROLLER)?APP_DEFAULT_CONTROLLER:"top",defined(APP_DEFAULT_ACTION)?APP_DEFAULT_ACTION:$method];
-	$len = count($uparts);
-	/*
-	error_log("uri=$uri,ns=$namespace;ctrl=$controller;act=$action");
-	error_log(json_encode($resources));
-	*/
-	if(empty($uparts)){$uparts=[$controller,$action];}
-	if(count($uparts)==1)$uparts[]=$action;
-	
-	if($uri==""){
-		$uri=$controller;
-		$_REQUEST["uri"] = $uri;
-	}else if(in_array($uri,$resources["namespaces"])){//default controller
-		$namespace = $uri;
-	}else if(in_array($uri,$resources["controllers"])){//controller exist with default action
-		$namespace = join("/",array_slice($uparts, 0 , $len-1));
-		$controller = $uparts[$len-1];
-		//error_log("CTRL : ns=$namespace;ctrl=$controller;act=$action");
-	}else if(in_array(join("/",array_slice($uparts, 0 , $len-1)),$resources["controllers"])){//controller exist with action
-		$namespace = join("/",array_slice($uparts, 0 , $len-2));
-		$controller = $uparts[$len-2];
-		$action = $uparts[$len-1];
-		//error_log("ctrl with act",$namespace,"-",$controller,"-",$action);
-	}else{//controller not exist
-		if($len==1 && Strings::startsWith($uri,"@")){//check RESTful request with no controller.
-			$uri = substr($uri,1);
-			if(in_array($uri,$resources["schemas"])){
-				$controller = "@REST";
-				$_REQUEST["@schema"] = $uri;  
-				$action = $method;
-			}
-		}else if(in_array($_REQUEST["client_type"]."/".join("_",$uparts),$resources["views"])){//has view template file
-			//error_log($_REQUEST["client_type"]."/".join("_",$uparts).".html");
-			render_html(join("_",$uparts).".html");
-			exit;
-		}else error(400);
-	}
-	$_REQUEST["namespace"] = $namespace;
-	$_REQUEST["controller"] = $controller;
-	$_REQUEST["action"] = $action;
-	//error_log("ns=$namespace, ctrl=$controller, act=$action");
-}
-
-function parse_user_agent(){
-	$ua = isset($_SERVER['HTTP_USER_AGENT'])?$_SERVER['HTTP_USER_AGENT']: $_REQUEST["userAgent"];
-	//$br=get_browser($ua); //never use this, it will kill performance !!!
-	$type = "pc";
-	if(preg_match('/(curl|wget|ApacheBench)\//i',$ua)) 
-		$type = "cmd";
-	else if(preg_match('/(iPad|MSIE.*Touch|Android)/',$ua)) //FIX Android problems later.
-		$type = "pad";
-	else if(preg_match('/(iPhone|iPod|(Android.*Mobile)|BlackBerry|IEMobile)/i',$ua)) 
-		$type = "sm";
-	/*
-	* check search engine bots.
-	* Yeti : naver.com /Korea:6
-	* ia_archiver : alexa
-	* ichiro : goo.ne.jp
-	* Y!J-BRJ/YATS : listing.yahoo.co.jp
-	* Jeeves\/Teoma|BlogCrawler : ask.com / ask.jp
-	* */
-	//text search bot
-	if(preg_match('/Googlebot|bingbot|msnbot|Yahoo|Y\!J|Yeti|Baiduspider|BaiduMobaider|ichiro|hotpage\.fr|Feedfetcher|ia_archiver|Tumblr|Jeeves\/Teoma|BlogCrawler/i',$ua))
-		$type = "bot";
-	else if(preg_match('/Googlebot-Image|msnbot-media/i',$ua))
-		$type = "imgbot";
-	$_REQUEST["client_type"] = $type;
-	$_REQUEST["view_template_type"] = Strings::contains(CLINET_TYPES, "|$type|") ? $type:"pc";
-	//error_log("client_type = ".$_REQUEST["client_type"]);
-}
-
-/**
- * Preload all schemas, controllers with APC 
- */
-function load_resources(){
-	$resources = cache_get("APP_RESOURCES", function($key){
-		exec("find ".CTRL_DIR,$res);
-		$namespaces = array_unique(array_map(function($e){
-			return strtolower(preg_replace(["/^".str_replace("/","\/",CTRL_DIR)."/",'/\/(.*)\.inc$/',"/^\//"],["","",""], $e));
-		},array_slice($res,0)));
-		$controllers = array_unique(array_map(function($e){
-			return strtolower(preg_replace(["/^".str_replace("/","\/",CTRL_DIR)."/",'/\.inc$/',"/^\//"],["","",""], $e));
-		},array_slice($res,0)));
-		exec("find ".SCHEMA_DIR,$res2);
-		$schemas = array_unique(array_map(function($e){
-			return strtolower(preg_replace(["/^".str_replace("/","\/",SCHEMA_DIR)."/",'/\.ini$/',"/^\//"],["","",""], $e));
-		},$res2));
-		exec("find ".VIEW_DIR,$res3);
-		$views = array_unique(array_map(function($e){
-			return strtolower(preg_replace(["/^".str_replace("/","\/",VIEW_DIR)."/",'/\.html$/',"/^\//"],["","",""], $e));
-		},$res3));
-		return ["namespaces" => Arrays::remove($namespaces, ""), "controllers" => Arrays::remove($controllers, ""),
-		 		"schemas"=>Arrays::remove($schemas, ""),"views"=>Arrays::remove($views, ["","pc","sm","bot","ibot","pad"])];
-	},false);
-	return $resources;
-}
-
-/**
- * Controller function, Process normal requests.
- * Obey the rules of /...PATH/CONTROLLER_NAME/ACTION_NAME?parameters
- */
-function process($useSession=true){
-	try {
-		if($useSession)
-			Session::start();
-		//FIXME add namespace
-		$controller_dir = isset($_REQUEST["namespace"]) && $_REQUEST["namespace"]!="" ? CTRL_DIR.$_REQUEST["namespace"]."/":CTRL_DIR;
-		$file_path = $controller_dir.$_REQUEST["controller"].".inc";
-		include_once $file_path;
-		//auth check
-		if(isset($auth_actions)){
-			$auth_actions = str_replace(" ","",$auth_actions);
-			if($auth_actions=="*" || Strings::contains(",".$auth_actions.",", ",$actionName,")){
-				$res = Auth::check();
-				if($res===false){
-					return error("401","json");
-				}
-			}
-		}
-		//process
-		$action = $_REQUEST["action"];
-		$exec = function($action){
-			$has_wrapper =  !isset($exclude_wrappers) || !in_array($action, $exclude_wrappers);
-			if (function_exists("before_wrapper") && $has_wrapper)
-				before_wrapper($_REQUEST["params"]);
-			$action($_REQUEST["params"]);
-			if (function_exists("after_wrapper")  && $has_wrapper){
-				if($_REQUEST["RESPONSE_TYPE"]!="text/html"){//use only on json or text, html should use in smarty.
-					after_wrapper($_REQUEST["params"]);
-				}else{
-					$_REQUEST["after_wrapper"] = true;
-				}
-			}
-		};
-		if(function_exists($action)){//normal request
-			$exec($action);
-		}else if(Strings::startsWith($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
-			$action = str_replace("test_","",$action);
-			$file = TEST_DIR.$_REQUEST["controller"].".json";
-			if (file_exists($file)){
-				$content = file_get_contents($file);
-				$content = str_replace("\n","",str_replace("\t", "", (string)$content));//Notice: ¥n ¥t will not be trimed anyway :(
-				$cases = json_decode($content, true);
-				if(isset($cases) && isset($cases[$action])){
-					$cases = $cases[$action];
-					foreach ($cases as $case){
-						Tests::exec($_REQUEST["controller"], $action, $case);
-					}
-				}
-			}else{
-				echo "<H1>Error:</H1><br>Test case does not exist <br> Pls add case to /test/[CONTROLLER].json<br>And specify your case by your ACTION_NAME";
-				error(400,"html");
-			}
-			interrupt();
-		}else{//no action
-			return render_default_template();
-		}
-	} catch(Exception $e) {
-		echo $e->getMessage();
-		throw new Exception($controllerName.',Controller not found');
-	}
-}
-/**
- * Controller function, Process RESTful requests (without controller definations).
- * Obey the rules of /@SCHEMA_NAME/{ID}?parameters
- */
-function rest_process(){
-	$schema = $_REQUEST["@schema"];
-	//check filter
-	include_once REST_DIR.$schema.".inc";
-	//if($_REQUEST["test_method"])$_REQUEST["action"] =$_REQUEST["test_method"]; 
-	$func = "rest_".$_REQUEST["action"];
-	$pk = db_schema($schema)["general"]["pk"];
-	$params = $_REQUEST["params"];
-	if(isset($params[$pk]) && !isset($params["@id"]))
-		$params["@id"] = $params[$pk];
-	$delegate = "rest_".$schema."_".$_REQUEST["action"];
-	$available = (function_exists($delegate)) ? $delegate($schema, $params):true;
-	if($available){
-		return $func($schema, $params);
-	}else{
-		error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
-	}
-}
-
-function rest_get($schema, $params){
-	$res = (isset($params["@id"]))?
-		db_find1st($schema, $params):
-		db_find($schema, $params);
-	render_json($res);
-}
-
-function rest_post($schema, $params){
-	if(isset($params["@id"])){
-		error(400,"RESTful ERROR : Sorry, You can't use RESTful POST with @id, try PUT for update or using normal controllers");
-	}else{
-		return render_json(db_save($schema, $params, true));
-	}
-}
-function rest_put($schema, $params){
-	if(isset($params["@id"])){
-		return render_json(db_save($schema, $params));
-	}else{
-		error(400,"RESTful ERROR : You must specify a @id to use RESTful PUT");
-	}
-}
-function rest_delete($schema, $params){
-	if(isset($params["@id"])){
-		return render_json(db_delete($schema, $params));
-	}else{
-		error(400,"RESTful ERROR : You must specify a @id to use RESTful DELETE");
-	}
-}
-
-
 
 /**
  * @param string $key
  * @param unknown_type $value
  */
 function assign($key, $value){
-	if(!isset($render) || $render==null)
-		init_render();
+	$render = REQ::getRender();
 	$render->assign($key, $value);
 }
 
-function init_render($path=null){
-	require_once SMARTY_DIR.'Smarty.class.php';
-	global $render,$render_path;
-	$render = new Smarty();
-	$clientType = $_REQUEST['view_template_type'];
-	if ($path==null){
-		$path = VIEW_DIR.__SLASH__.$clientType;
-		$path = $_REQUEST["namespace"]==""? $path:$path."/".$_REQUEST["namespace"];
-	}
-	$render_path = $path;
-	$render->setTemplateDir($path);
-	$render->setCompileDir(TMP_DIR.'templates_c');
-	$render->setCacheDir(TMP_DIR.'cache');
-	$render->setConfigDir(TMP_DIR.'configs');
-	$render->assign('CLIENT_TYPE',$clientType);
-	$render->assign('controller',$_REQUEST["controller"]);
-	$render->assign('action',$_REQUEST["action"]);
-}
-
 function render($arg1=false, $arg2=false){
-	switch($_REQUEST["@format"]){
+	switch(REQ::getFormat()){
 		case "json":return render_json($arg1);
 		case "text":return render_text($arg1);
 		default:return render_html($arg1,$arg2);			
 	}
 }
 
-function render_template($templateName=NULL, $datas=array()){
-	global $render,$render_path,$render_contents;
-	if(!isset($render))
-		init_render();
+function render_template($templateName=null, $datas=array()){
+	list($render,$render_path) = [REQ::getRender(), REQ::getRenderPath()];
 	if (!isset($templateName)){
-		$templateName = $_REQUEST["action"];
+		$templateName = REQ::getAction();
 	}
 	if(!empty($datas)){
 		foreach ($datas as $k=>$v){
 			$render->assign($k, $v);
 		}
 	}
-	//$this->assign("controller", $this->controller);
 	if(!Strings::endsWith($templateName, ".html") && !Strings::endsWith($templateName, ".html"))
-		$templateName = $_REQUEST["controller"].'_'.$templateName.'.html';
-	error_log($render_path."/".$templateName);
+		$templateName = REQ::getController().'_'.$templateName.'.html';
+	error_log("render_template::".$render_path."/".$templateName);
 	if(file_exists($render_path."/".$templateName))
-		$render_contents[] = $render->fetch($templateName);
+		REQ::addContent($render->fetch($templateName));
 }
 
-function render_html($templateName=NULL, $datas=array()){
-	global $render,$render_layout,$render_contents;
-	if(!isset($render) || $render==null)
-		init_render();
+function render_html($templateName=null, $datas=array()){
+	list($render,$render_layout) = [REQ::getRender(), REQ::getRenderLayout()];
 	render_template($templateName, $datas);
-	$appName = Strings::contains($_REQUEST['uri'],"/".APP_NAME."/")?"/".APP_NAME:"";
+	$appName = Strings::contains(REQ::getURI(),"/".APP_NAME."/")?"/".APP_NAME:"";
 	$render->assign('TITLE',APP_NAME);
-	$render->assign('CONTENTS', $render_contents);
+	$render->assign('CONTENTS', REQ::getContent());
 
-	$uid = $_REQUEST["uid"];
-	/*
-	 if($uid!=null && ($uid>0 || isset($_REQUEST["trial"]))){
-	$user = $_REQUEST["me"];
-	assign("me", $user->data);
-	}*/
 	//render template file
 	$html = $render->fetch($render_layout);
-	$_REQUEST["RESPONSE_TYPE"]="text/html";
-	$_REQUEST["RESPONSE_BODY"]=$html;
+	header('Content-type: text/html; charset=UTF-8');
+	REQ::setResponseBody($html);
 	if(isset($_REQUEST["after_wrapper"]))
-		after_wrapper($_REQUEST["params"]);
+		after_wrapper(REQ::getParams());
 	echo $html;
 }
 
 function render_json($data,$code="200"){
-	$_REQUEST["RESPONSE_TYPE"]="application/json";
-	$_REQUEST["RESPONSE_BODY"]=json_encode($data);
-	echo $_REQUEST["RESPONSE_BODY"];
+	$body = json_encode($data);
+	header('Content-type: application/json; charset=UTF-8');
+	REQ::setResponseBody(json_encode($data));
+	echo $body;
 }
 
 function render_text($text,$code="200"){
-	$_REQUEST["RESPONSE_TYPE"]="text/plain";
-	$_REQUEST["RESPONSE_BODY"]=$text;
+	header('Content-type: text/plain; charset=UTF-8');
+	REQ::setResponseBody($text);
 	echo $text;
 }
 
 function render_default_template(){
-	$path = VIEW_DIR.$_REQUEST['view_template_type'];
-	if($_REQUEST["namespace"]!=""){
-		$path .= "/".str_replace(".","/",$_REQUEST["namespace"]);
+	$path = APP_DIR.__SLASH__."views".__SLASH__.REQ::getClientTemplateType();
+	$ns = REQ::getNamespace();
+	if($ns!=""){
+		$path .= "/".str_replace(".","/",$ns);
 	}
-	$template_file = $_REQUEST["controller"].'_'.$_REQUEST["action"].'.html';
-	error_log($template_file);
+	$template_file = REQ::getController().'_'.REQ::getAction().'.html';
+	error_log($path."/".$template_file);
 	if(file_exists($path."/".$template_file)){
 		render_html($template_file);
 	}else{
@@ -496,16 +167,18 @@ function redirect($url,$method="GET",$data=array()) {
 	if("GET"==$method){
 		echo "<html><script type='text/javascript'>window.location='".$redirectUrl."';</script></html>";
 	}else{
+		//FIXME!!
 		$render = new Smarty();
-		$clientType = $_REQUEST['view_template_type'];
-		$path = VIEW_DIR.'templates'.__SLASH__."pc".$adminSurfix;
+		$clientType = REQ::getClientTemplateType();
+		$vdir = APP_DIR.__SLASH__."views".__SLASH__;
+		$path = $vdir.'templates'.__SLASH__."pc".$adminSurfix;
 		$render->setTemplateDir($path);
-		$render->setCompileDir(VIEW_DIR.'templates_c');
-		$render->setCacheDir(VIEW_DIR.'cache');
-		$render->setConfigDir(VIEW_DIR.'configs');
+		$render->setCompileDir($vdir.'templates_c');
+		$render->setCacheDir($vdir.'cache');
+		$render->setConfigDir($vdir.'configs');
 
 		if(!Strings::startsWith($url,'http') && !Strings::startsWith($url,'https')){
-			$url = self::getURL($url);
+			$url = self::getURL($url);//FIXME
 		}
 		$render->assign('uri',$url);
 		$render->assign('data',$data);
@@ -552,12 +225,11 @@ function T($key,$replace=array(),$lang="jp"){
 	if(Strings::contains($key, ".")){
 		list($filename,$key) = explode(".", $key, 2);
 	}else{
-		$filename = Strings::contains($_REQUEST["controller"], "Controller")?
-		strtolower(str_replace($_REQUEST["controller"],"Controller", "")):strtolower($_REQUEST["controller"]);
+		$filename = strtolower(REQ::getController());
 	}
-	global $TEXTS;//FIXME : to APC Cache
+	global $TEXTS;//FIXME : to APC Cache and push to REQ
 	if(!isset($TEXTS) || !isset($TEXTS[$filename])){
-		$file = TEXT_DIR.$lang."/".$filename.".json";
+		$file = APP_DIR.__SLASH__."conf".__SLASH__."text".__SLASH__.$lang."/".$filename.".json";
 		if (file_exists($file)){
 			$texts = file_get_contents($file);
 			$texts = preg_replace(['/\s*/','/\'/'], ["",'"'], $texts);
@@ -642,12 +314,415 @@ function paginate($page,$total,$perPage,$center=null){
 	return $pages;
 }
 
+
 /**
- * Interrupt the current process & run the next test case.
- * For unit test only !!!
- * */
-function interrupt(){
-	$_REQUEST["INTERRUPTED"] = true;
+ * Encapsulate request variables for security reason
+ *
+ */
+class REQ {
+	
+	private static $resources = null;
+	
+	private static $db = null;
+	private static $render = null;
+	private static $render_path = null;
+	private static $render_contents = [];
+	private static $render_layout = "_layout.html";
+	
+	private static $dispatched = false;
+	private static $interrupted = false;
+	private static $redirecting = null;
+	
+	private static $uri = null;
+	private static $namespace = "";
+	private static $controller = null;
+	private static $action = null;
+	private static $format = "html";
+	private static $params = [];
+	private static $client_type = "pc";
+	private static $client_template_type = "pc";
+	private static $rest_schema = null;
+	
+	private static $response_body = null;
+	
+	private function __construct(){}
+	static function getDB(){return self::$db;}
+	static function setDB($dbh){if(isset($dbh) && $dbh instanceof PDO)self::$db=$dbh;}
+	static function getRender($path=null){
+		if(!isset(self::$render)){
+			$smartydir = get_conf("APP_SMARTY_DIR");
+			$smartydir = isset($smartydir)?$smartydir:APP_DIR.__SLASH__."lib".__SLASH__."smarty".__SLASH__;
+			
+			require_once $smartydir.'Smarty.class.php';
+			$render = new Smarty();
+			$clientType = self::$client_template_type;
+			if ($path==null){
+				$path = APP_DIR.__SLASH__."views".__SLASH__.$clientType;
+				$path = self::$namespace==""? $path:$path."/".self::$namespace;
+			}
+			$tmpdir = APP_DIR.__SLASH__."tmp".__SLASH__;
+			$render->setTemplateDir($path);
+			$render->setCompileDir($tmpdir.'templates_c');
+			$render->setCacheDir($tmpdir.'cache');
+			$render->setConfigDir($tmpdir.'configs');
+			$render->assign('CLIENT_TYPE',$clientType);
+			$render->assign('controller',self::$controller);
+			$render->assign('action',self::$action);
+			self::$render_path = $path;
+			self::$render = $render;
+		}
+		return self::$render;
+	}
+	static function getRenderPath(){return self::$render_path;}
+	static function setRenderPath($path){if(isset($path) && is_string($path))self::$render_path=$path;}
+	static function getRenderLayout(){return self::$render_layout;}
+	static function setRenderLayout($path){if(isset($path) && is_string($path))self::$render_layout=$path;}
+	static function getContent(){return self::$render_contents;}
+	static function addContent($content){if(isset($content) && is_string($content))self::$render_contents[]=$content;}
+	
+	static function getClientType(){return self::$client_type;}
+	static function getClientTemplateType(){return self::$client_template_type;}
+	static function getNamespace(){return self::$namespace;}
+	static function getController(){return self::$controller;}
+	static function getAction(){return self::$action;}
+	static function getFormat(){return self::$format;}
+	static function getURI(){return self::$uri;}
+	
+	static function setResponseBody($body){if(isset($body) && is_string($body))self::$response_body=$body;}
+	
+	
+	
+	/**
+	 * Core function, all requests URLs are dispatched here.
+	 */
+	public static function dispatch(){
+		if(self::$dispatched===true)return;
+		self::parse_uri();
+		try{
+			$filters = $_REQUEST["filters"];
+			$size = count($filters);
+			$filterCls = [];
+			if($useSession)
+				Session::start();
+			for ($token=$size*(-1); $token<=$size; $token++){
+				if(true===self::$interrupted)
+					break;
+				if ($token == 0){//Exec controller->actions
+					if(isset(self::$rest_schema)){
+						self::rest_process();
+					}else{
+						self::process();
+					}
+				}else if($size>0){//Exec filters
+					$nextIdx = $token < 0 ? $size + $token : $size - $token ;
+					$filterName = $filters[$nextIdx];
+					if(!empty($filterName)){
+						$filter = array_key_exists($filterName, $filterCls)? $filterCls[$filterName]: Filter::factory($filterName);
+						if(!array_key_exists($filterName, $filterCls)){
+							$filterCls[$filterName] = $filter;
+						}
+						($token<0) ? $filter->before() : $filter->after();
+					}
+				}
+			}
+			
+			if(isset(self::$redirecting)){
+				redirect(self::$redirecting);
+			}
+			//show
+			if(!isset(self::$response_body)){
+				render_html();
+			}
+			//echo $_REQUEST["RESPONSE_BODY"];
+		}catch(Exception $e){
+			error_log("exec exception");
+			print $e->getMessage();
+		}
+		//echo $response;
+		exit;
+	}
+	
+	
+	private static function parse_uri(){
+		$host =$_SERVER["SERVER_NAME"];
+		$uri = htmlEntities($_SERVER["REQUEST_URI"], ENT_QUOTES|ENT_HTML401);
+		$uri = preg_replace(['/\sHTTP.*/','/(\/)+/','/\/$/','/^[a-zA-Z0-9]/'], ['',"/","","/$1"], $uri);
+		//error_log($_SERVER["REQUEST_URI"]." host=$host url=$uri");
+		$parts = parse_url("http://".$host.$uri);
+		$uri = $parts["path"];
+		$fmts = ['json','bson','text','html','csv'];
+		$params = ["@format"=>in_array($_REQUEST["format"], $fmts)?$_REQUEST["format"]:"html"];
+		if(isset($parts["query"]))
+			parse_str($parts["query"],$params);
+		list($uri, $ext) = explode(".", $uri);
+		$specifiedFmt = in_array($ext,$fmts);
+		if($ext==1||$ext==""||$specifiedFmt){//action
+			preg_match_all('/\/(?P<digit>\d+)\/*/', $uri, $matches);
+			if(!Arrays::isEmpty($matches["digit"])){
+				$params["@id"] = (int)$matches["digit"][0];
+				$uri = preg_replace("/\/\d+\/*/", "", $uri);
+			}
+			self::$uri = $uri;
+			self::$params = $params;
+			if($specifiedFmt) self::$format = $ext;
+			self::parse_user_agent();
+			self::parse_rest_uri();
+		}else{//static
+			//TODO redirect ?
+			self::$uri = "/webroot".$uri.".$ext";
+		}
+	
+	}
+	
+	private static function parse_rest_uri(){
+		$uri = preg_replace("/^\//","",self::$uri);
+		$uparts =Arrays::remove(explode("/",$uri), "");
+	
+		$method = strtolower($_SERVER["REQUEST_METHOD"]);
+	
+		if ($method == "put" || $method == "delete") {
+			parse_str(file_get_contents('php://input'), self::$params);
+		}
+		$target =($method=="post"||$method=="put")?$_POST: $_GET;
+		foreach($target as $k=>$v)
+			self::$params[$k] = $v;
+		unset(self::$params["__URL__"]);
+		
+		foreach(self::$params as $k=>$v){
+			self::$params[$k] = htmlEntities($v); //XSS
+		}
+	
+		$resources = self::load_resources();
+	
+		list($namespace, $controller, $action) =
+		["",get_conf("APP_DEFAULT_CONTROLLER","top"),get_conf("APP_DEFAULT_ACTION",$method)];
+		$len = count($uparts);
+		/*
+		 error_log("uri=$uri,ns=$namespace;ctrl=$controller;act=$action");
+		*/
+		//echo(json_encode($resources))."\n";
+		if(empty($uparts)){$uparts=[$controller,$action];}
+		if(count($uparts)==1)$uparts[]=$action;
+	
+		if($uri==""){
+			self::$uri = $controller;
+		}else if(in_array($uri,$resources["namespaces"])){//default controller
+			$namespace = $uri;
+		}else if(in_array($uri,$resources["controllers"])){//controller exist with default action
+			$namespace = join("/",array_slice($uparts, 0 , $len-1));
+			$controller = $uparts[$len-1];
+			//error_log("CTRL : ns=$namespace;ctrl=$controller;act=$action");
+		}else if(in_array(join("/",array_slice($uparts, 0 , $len-1)),$resources["controllers"])){//controller exist with action
+			$namespace = join("/",array_slice($uparts, 0 , $len-2));
+			$controller = $uparts[$len-2];
+			$action = $uparts[$len-1];
+			//error_log("ctrl with act",$namespace,"-",$controller,"-",$action);
+		}else{//controller not exist
+			if($len==1 && Strings::startsWith($uri,"@")){//check RESTful request with no controller.
+				$uri = substr($uri,1);
+				if(in_array($uri,$resources["schemas"])){
+					$controller = "@REST";
+					self::$rest_schema = $uri;
+					$action = $method;
+				}
+			}else if(in_array(self::$client_type."/".join("_",$uparts),$resources["views"])){//has view template file
+				//error_log($_REQUEST["client_type"]."/".join("_",$uparts).".html");
+				render_html(join("_",$uparts).".html");
+				exit;
+			}else error(400,"$uri");
+		}
+		self::$namespace = $namespace;
+		self::$controller = $controller;
+		self::$action = $action;
+		//error_log("ns=$namespace, ctrl=$controller, act=$action");
+	}
+	
+	private static function parse_user_agent(){
+		$ua = $_SERVER['HTTP_USER_AGENT'];
+		//$br=get_browser($ua); //never use this, it will kill performance !!!
+		$type = "pc";
+		if(preg_match('/(curl|wget|ApacheBench)\//i',$ua))
+			$type = "cmd";
+		else if(preg_match('/(iPad|MSIE.*Touch|Android)/',$ua)) //FIX Android problems later.
+			$type = "pad";
+		else if(preg_match('/(iPhone|iPod|(Android.*Mobile)|BlackBerry|IEMobile)/i',$ua))
+			$type = "sm";
+		/*
+		 * check search engine bots.
+		* Yeti : naver.com /Korea:6
+		* ia_archiver : alexa
+		* ichiro : goo.ne.jp
+		* Y!J-BRJ/YATS : listing.yahoo.co.jp
+		* Jeeves\/Teoma|BlogCrawler : ask.com / ask.jp
+		* */
+		//text search bot
+		if(preg_match('/Googlebot|bingbot|msnbot|Yahoo|Y\!J|Yeti|Baiduspider|BaiduMobaider|ichiro|hotpage\.fr|Feedfetcher|ia_archiver|Tumblr|Jeeves\/Teoma|BlogCrawler/i',$ua))
+			$type = "bot";
+		else if(preg_match('/Googlebot-Image|msnbot-media/i',$ua))
+			$type = "ibot";
+		self::$client_type = $type;
+		
+		$vtypes = self::load_resources()["view_types"];
+		self::$client_template_type = in_array($type,$vtypes)? $type:"pc";//TODO:empty dir, with no file
+	}
+	
+	/**
+	 * Preload all schemas, controllers with APC
+	 */
+	private static function load_resources(){
+		if(self::$resources) 
+			return self::$resources;
+		self::$resources = cache_get("APP_RESOURCES", function($key){
+			$ctrldir = APP_DIR.__SLASH__."controllers";
+			exec("find $ctrldir",$res);
+			$namespaces = array_unique(array_map(function($e){
+				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\/(.*)\.inc$/',"/^\//"],["","",""], $e));
+			},array_slice($res,0)));
+			$controllers = array_unique(array_map(function($e){
+				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\.inc$/',"/^\//"],["","",""], $e));
+			},array_slice($res,0)));
+			$schemadir = APP_DIR.__SLASH__."conf".__SLASH__."schemas";
+			exec("find $schemadir",$res2);
+			$schemas = array_unique(array_map(function($e){
+				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."conf".__SLASH__."schemas")."/",'/\.ini$/',"/^\//"],["","",""], $e));
+			},$res2));
+			$vdir = APP_DIR.__SLASH__."views";
+			exec("find $vdir",$res3);
+			$views = array_unique(array_map(function($e){
+				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."views".__SLASH__)."/",'/\.html$/',"/^\//"],["","",""], $e));
+			},$res3));
+			$view_types = glob($vdir.__SLASH__."*",GLOB_ONLYDIR);
+			return ["namespaces" => Arrays::remove($namespaces, ""), "controllers" => Arrays::remove($controllers, ""),
+			"schemas"=>Arrays::remove($schemas, ""),"views"=>Arrays::remove($views, ["","pc","sm","bot","ibot","pad","mail"]),
+			"view_types"=>array_map(function($e){
+				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."views".__SLASH__)."/","/^\//"],["",""], $e));
+			},$view_types)];
+		},false);
+		return self::$resources;
+	}
+	
+	/**
+	 * Controller function, Process normal requests.
+	 * Obey the rules of /...PATH/CONTROLLER_NAME/ACTION_NAME?parameters
+	 */
+	private static function process($useSession=true){
+		try {
+			//FIXME add namespace
+			$ctrldir = APP_DIR.__SLASH__."controllers".__SLASH__;
+			$controller_dir = isset(self::$namespace) && self::$namespace!="" ? $ctrldir.self::$namespace."/":$ctrldir;
+			$file_path = $controller_dir.self::$controller.".inc";
+			include_once $file_path;
+			//auth check
+			if(isset($auth_actions)){
+				$auth_actions = str_replace(" ","",$auth_actions);
+				if($auth_actions=="*" || Strings::contains(",".$auth_actions.",", ",$actionName,")){
+					$res = Auth::check();
+					if($res===false){
+						return error("401","json");
+					}
+				}
+			}
+			//process
+			$action = self::$action;
+			$exec = function($action){
+				$has_wrapper =  !isset($exclude_wrappers) || !in_array($action, $exclude_wrappers);
+				if (function_exists("before_wrapper") && $has_wrapper)
+					before_wrapper(self::$params);
+				$action(self::$params);
+				if (function_exists("after_wrapper")  && $has_wrapper){
+					if(self::$format!="html"){//use only on json or text, html should use in smarty.
+						after_wrapper(self::$params);
+					}else{
+						$_REQUEST["after_wrapper"] = true;
+					}
+				}
+			};
+			if(function_exists($action)){//normal request
+				$exec($action);
+			}else if(Strings::startsWith($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
+				$action = str_replace("test_","",$action);
+				$file = APP_DIR.__SLASH__."test".__SLASH__.self::$controller.".json";
+				if (file_exists($file)){
+					$content = file_get_contents($file);
+					$content = str_replace("\n","",str_replace("\t", "", (string)$content));//Notice: ¥n ¥t will not be trimed anyway :(
+					$cases = json_decode($content, true);
+					if(isset($cases) && isset($cases[$action])){
+						$cases = $cases[$action];
+						foreach ($cases as $case){
+							Tests::exec(self::$controller, $action, $case);
+						}
+					}
+				}else{
+					echo "<H1>Error:</H1><br>Test case does not exist <br> Pls add case to /test/[CONTROLLER].json<br>And specify your case by your ACTION_NAME";
+					error(400,"html");
+				}
+				self::$interrupted = true;
+			}else{//no action
+				return render_default_template();
+			}
+		} catch(Exception $e) {
+			echo $e->getMessage();
+			throw new Exception($controllerName.',Controller not found');
+		}
+	}
+	
+	/**
+	 * Controller function, Process RESTful requests (without controller definations).
+	 * Obey the rules of /@SCHEMA_NAME/{ID}?parameters
+	 */
+	private static function rest_process(){
+		$schema = self::$rest_schema;
+		//check filter
+		include_once APP_DIR.__SLASH__."restful".__SLASH__.$schema.".inc";
+		//if($_REQUEST["test_method"])$_REQUEST["action"] =$_REQUEST["test_method"];
+		$pk = db_schema($schema)["general"]["pk"];
+		$params = self::$params;
+		if(isset($params[$pk]) && !isset($params["@id"]))
+			$params["@id"] = $params[$pk];
+		$delegate = "rest_".$schema."_".self::$action;
+		if(!function_exists($delegate)){
+			switch(strtolower($_SERVER["REQUEST_METHOD"])){
+				case "get"	:return self::rest_get($schema,$params);
+				case "post"	:return self::rest_post($schema,$params);
+				case "put"	:return self::rest_put($schema,$params);
+				case "delete":return self::rest_delete($schema,$params);
+				default : return error(401,"RESTful ERROR : Sorry, You are not permited to do that.");
+			}
+		}else{
+			$re  = $delegate($schema, $params);
+			if(!$re)
+				error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
+		}
+	}
+	
+	private static function rest_get($schema, $params){
+		$res = (isset($params["@id"]))?
+			db_find1st($schema, $params):
+			db_find($schema, $params);
+		render_json($res);
+	}
+	
+	private static function rest_post($schema, $params){
+		if(isset($params["@id"])){
+			error(400,"RESTful ERROR : Sorry, You can't use RESTful POST with @id, try PUT for update or using normal controllers");
+		}else{
+			return render_json(db_save($schema, $params, true));
+		}
+	}
+	private static function rest_put($schema, $params){
+		if(isset($params["@id"])){
+			return render_json(db_save($schema, $params));
+		}else{
+			error(400,"RESTful ERROR : You must specify a @id to use RESTful PUT");
+		}
+	}
+	private static function rest_delete($schema, $params){
+		if(isset($params["@id"])){
+			return render_json(db_delete($schema, $params));
+		}else{
+			error(400,"RESTful ERROR : You must specify a @id to use RESTful DELETE");
+		}
+	}
 }
 
 

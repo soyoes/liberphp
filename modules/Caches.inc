@@ -18,7 +18,8 @@
  * @return : mixed | false
  * */
 function cache_get($key, $nullHandler=null,$sync=true){
-	$res = apc_fetch($key);
+	$k = APP_NAME."::".$key;
+	$res = apc_fetch($k);
 	if((!$res || !isset($res)) && $sync){
 		$res = mc_get($key);
 	}
@@ -40,7 +41,8 @@ function cache_get($key, $nullHandler=null,$sync=true){
  * @return : boolean
  */
 function cache_set($key, $value, $time=3600, $sync=true){
-	$s = apc_store($key, $value, $time);
+	$k = APP_NAME."::".$key;
+	$s = apc_store($k, $value, $time);
 	return ($time && $sync)?mc_set($key,$value,$time):$s;
 }
 
@@ -51,7 +53,8 @@ function cache_set($key, $value, $time=3600, $sync=true){
  * @return : boolean
  */
 function cache_del($key,$sync=true){
-	$r = apc_delete($key);
+	$k = APP_NAME."::".$key;
+	$r = apc_delete($k);
 	return ($sync)?mc_del($key):$r;
 }
 
@@ -63,7 +66,8 @@ function cache_del($key,$sync=true){
  * @return : int new amount
  */
 function cache_inc($key,$amount=1,$sync=false){
-	$res = apc_inc($key, $amount);
+	$k = APP_NAME."::".$key;
+	$res = apc_inc($k, $amount);
 	return ($sync)?mc_inc($key,$amount):$res;
 }
 
@@ -73,7 +77,7 @@ function cache_inc($key,$amount=1,$sync=false){
  * @return : The number of bytes written | false for failure
  */
 function cache_dump(){
-	return @apc_bin_dumpfile([],null, TMP_DIR."apc.data");
+	return @apc_bin_dumpfile([],null, APP_DIR.__SLASH__."tmp".__SLASH__."apc.data");
 }
 
 /**
@@ -82,7 +86,7 @@ function cache_dump(){
  * @return : boolean
  */
 function cache_load(){
-	return @apc_bin_loadfile(TMP_DIR."apc.data");
+	return @apc_bin_loadfile(APP_DIR.__SLASH__."tmp".__SLASH__."apc.data");
 }
 
 /**
@@ -95,7 +99,7 @@ function mc_conn(){
 	if(!defined("CACHE_HOSTS")){
 		return false;
 	}else{
-		$hosts=explode(",", CACHE_HOSTS);
+		$hosts=explode(",", get_conf("CACHE_HOSTS"));
 		$ss = $conn->getServerList();
 		if (empty ( $ss )) {
 			$conn->setOption(Memcached::OPT_RECV_TIMEOUT, 1000);
@@ -123,8 +127,9 @@ function mc_conn(){
  */
 function mc_get($key){
 	$conn = mc_conn();
+	$k = APP_NAME."::".$key;
 	if($conn)
-		return $conn->get($key);
+		return $conn->get($k);
 	return false;
 }
 
@@ -135,8 +140,9 @@ function mc_get($key){
  */
 function mc_gets($keys){
 	$conn = mc_conn();
+	$ks = array_map(function($e){return APP_NAME."::".$k;}, $keys);
 	if($conn)
-		return $conn->getMulti($keys);
+		return $conn->getMulti($ks);
 	return false;
 }
 
@@ -148,8 +154,9 @@ function mc_gets($keys){
  * @return : boolean
  */
 function mc_set($key, $value, $time=3600){
+	$k = APP_NAME."::".$key;
 	$conn = mc_conn();
-	return ($conn)? $conn->set($key,$value,$time):false;
+	return ($conn)? $conn->set($k,$value,$time):false;
 }
 
 /**
@@ -160,8 +167,12 @@ function mc_set($key, $value, $time=3600){
  * @return : boolean
  */
 function mc_sets($datas,$time=3600){
+	$ds = [];
+	foreach($datas as $k=>$v){
+		$ds[APP_NAME."::".$k] = $v;		
+	}
 	$conn = mc_conn();
-	return ($conn)? $conn->setMulti($datas,$time):false;
+	return ($conn)? $conn->setMulti($ds,$time):false;
 }
 
 /**
@@ -171,8 +182,9 @@ function mc_sets($datas,$time=3600){
  * 
  */
 function mc_del($key){
+	$k = APP_NAME."::".$key;
 	$conn = mc_conn();
-	return ($conn)? $conn->delete($key,$time):false;
+	return ($conn)? $conn->delete($k,$time):false;
 }
 
 /**
@@ -182,6 +194,7 @@ function mc_del($key){
  * @return : new amount (int) | false if failure
  */
 function mc_inc($key,$amount=1){
+	$k = APP_NAME."::".$key;
 	$conn = mc_conn();
-	return ($conn)? $conn->increment($key,$amount):false;
+	return ($conn)? $conn->increment($k,$amount):false;
 }

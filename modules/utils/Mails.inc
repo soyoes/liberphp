@@ -44,29 +44,25 @@ class Mails {
 	static public function render($template,$data){
 		$appName = Strings::contains( $_SERVER['REQUEST_URI'],"/".APP_NAME."/")?"/".APP_NAME:"";
 		$render = new Smarty();
-		$path = VIEW_DIR.'templates/mail';	
-		$render->setTemplateDir($path);
-		$render->setCompileDir(VIEW_DIR.'templates_c');
-		$render->setCacheDir(VIEW_DIR.'cache');
-		$render->setConfigDir(VIEW_DIR.'configs');
+		$tmpdir = APP_DIR.__SLASH__."tmp".__SLASH__;
+		
+		$render->setTemplateDir(APP_DIR.__SLASH__."views".__SLASH__."mail");
+		$render->setCompileDir($tmpdir.'templates_c');
+		$render->setCacheDir($tmpdir.'cache');
+		$render->setConfigDir($tmpdir.'configs');
 		$render->assign('CLIENT_TYPE',$_REQUEST['client_type']);
-		$uid = $_REQUEST["uid"];
-		if($uid!=null && $uid>0){
-			$user = $_REQUEST["user"];
-			$render->assign("me", $user->data);
-		}
-		if(!Strings::endsWith($template, ".tpl") && !Strings::endsWith($template, ".html"))
-			$template .= '.tpl';
+		if(!Strings::endsWith($template, ".html"))
+			$template .= '.html';
 		$render->assign("template",$template);
 		foreach ($data as $k=>$v){
 			$render->assign($k,$v);
 		}
 		$render->assign("appPath", "http://".$_SERVER["HTTP_HOST"].$appName);
-		$render->assign("imagePath", IMAGE_HOST);
+		$render->assign("imagePath", get_conf("APP_IMAGE_HOST"));
 		$render->assign("jsPath", "http://".$_SERVER["HTTP_HOST"].$appName."/js");
 		$render->assign("cssPath", "http://".$_SERVER["HTTP_HOST"].$appName."/css");
 		//render template file
-		$content = $render->fetch("_layout.tpl");
+		$content = $render->fetch("_layout.html");
 		return $content;
 	}
 	

@@ -24,7 +24,7 @@ class Files {
 	/**
 	 * 
 	 * @example
-	 * $dir_path : CTRL_DIR
+	 * $dir_path : 
 	 * $condition : "*.inc";
 	 * 
 	 * */

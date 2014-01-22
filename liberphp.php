@@ -6,8 +6,9 @@
  *	@uses:
  *	@example:
  *****************************************************************************/
+/*LIBER_DIR*/
 $pwd=dirname(__FILE__);
-require_once "$pwd/init.inc";
+//require_once "$pwd/init.inc";
 $args = array_slice($argv, 1);
 $cmd = array_shift($args);
 
@@ -31,15 +32,19 @@ function create(){
 	global $pwd;
 	mkdir("../".$proj);
 	exec("tar zxf miscs/files.tgz -C ../$proj/");
-	
+	/*
 	exec("sed -i -e 's:YOUR_LIBERPHP_PATH:".$pwd.":g' ../$proj/conf/conf.ini");
 	exec("sed -i -e 's:YOUR_APP_NAME:".$proj.":g' ../$proj/conf/conf.ini");
+	*/
 	
 	$path =explode("/",$pwd);
 	$path = join("/",array_slice($path, 0, count($path)-2))."/".$proj;
 	
-	exec("cp init.inc ../$proj/");
+	//exec("cp init.inc ../$proj/");
+	exec("sed -i -e 's:/*__APP__NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/index.php");
+	
 	exec("cp -p liberphp.php ../$proj/");
+	exec("sed -i -e 's:/*LIBER_DIR*/:const LIBER_DIR=\"$pwd\";:g' ../$proj/liberphp.php");
 	
 	echo <<<EOF
 DONE!
@@ -90,15 +95,16 @@ EOF;
  * */
 function migrate(){
 	try{
+		include_once 'DB.inc';
 		//create database;
 		$//sql = "CREATE DATABASE IF NOT EXISTS `DBName` CHARACTER SET utf8 COLLATE utf8_general_ci;";
 		//db_query($sql);
 		//create assign user
-		
-		$sys_schemas = glob(LIBER_DIR."common/schemas/*.ini") ;
-		$app_schemas = glob(CONF_DIR."schemas/*.ini") ;
-		$schemas = !empty($sys_schemas)? array_merge($sys_schemas,$app_schemas):$app_schemas;
-		
+		$pwd=dirname(__FILE__);
+		//$sys_schemas = glob(LIBER_DIR."common/schemas/*.ini") ;
+		//$app_schemas = glob(CONF_DIR."schemas/*.ini") ;
+		//$schemas = !empty($sys_schemas)? array_merge($sys_schemas,$app_schemas):$app_schemas;
+		$schemas = glob($pwd."/conf/schemas/*.ini") ;
 		//print_r($schemas);
 		foreach ($schemas as $file){
 			echo $file."\n";

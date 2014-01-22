@@ -204,9 +204,9 @@ class GDs{
 
 	private static function preload(){
 		//$CONF;
-		self::$import_dir = GD_IMPORT_DIR;
-		self::$export_dir = GD_EXPORT_DIR;
-		self::$font_dir   = GD_FONT_DIR;
+		self::$import_dir = get_conf("GD_IMPORT_DIR");
+		self::$export_dir = get_conf("GD_EXPORT_DIR");
+		self::$font_dir   = get_conf("GD_FONT_DIR");
 	}
 	
 	/**

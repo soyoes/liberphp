@@ -48,15 +48,15 @@ $QUERY_FILTERS = [
 	"!()" 	=> function($k,$v){if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
 	"?"  	=> function($k,$v){if(!Strings::contains($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";},
 	"!?"  	=> function($k,$v){if(!Strings::contains($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";},
-	"~" 	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(DB_ENGINE)];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";}, 
+	"~" 	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";}, 
 			//Regexp only mysql or regexp
 			/*	@example db_find("users", ["title@~" => "^My"]) == select * from users where title regexp '^My'
 			 	For MySQL : these are available
 			 	^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
 			 */
-	"!~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(DB_ENGINE)];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-	"~~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(DB_ENGINE)];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-	"!~~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(DB_ENGINE)];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+	"!~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+	"~~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+	"!~~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
 			//Regexp with ignorecase option only mysql or regexp
 ];
 
@@ -66,19 +66,21 @@ $QUERY_FILTERS = [
  * @return PDO object.
  * */
 function db_conn($opts=null){
-	global $db;
+	$db = REQ::getDB();
 	if(!isset($db)){
-		$host = (strcmp(DB_HOST, "localhost")==0) ? "127.0.0.1" : DB_HOST;
-		$conn_str = strtolower(DB_ENGINE).":host=".$host.";port=".DB_PORT.";dbname=".DB_DB.";charset=utf8";
-		$db = new PDO($conn_str,DB_USER,DB_PASS,
+		$host = (strcmp(get_conf("DB_HOST"), "localhost")==0) ? "127.0.0.1" : get_conf("DB_HOST");
+		$conn_str = strtolower(get_conf("DB_ENGINE")).":host=".$host.";port=".get_conf("DB_PORT").";dbname=".get_conf("DB_DB").";charset=utf8";
+		$db = new PDO($conn_str,get_conf("DB_USER"),get_conf("DB_PASS"),
 				[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+		REQ::setDB($db);
 	}
 	return $db;
 }
 
 /**
  * exec query SQL like select ...
- * @param $sql: sql statement.
+ * @param $sql: sql statement with ?.
+ * @param $datas: variables inside sql.
  * @param $useCache: whether save/load result from APC/Memcache
  * @param $PDOOpt: FETCH_COLUMN, FETCH_ASSOC ...
  * @return array or assoc array.
@@ -250,8 +252,8 @@ function db_import($table, $datas){
 		$cols = array_unique(array_merge($cols,array_keys($d)));
 	}
 	
-	$regName = defined(DB_REGAT_NAME)?DB_REGAT_NAME:"regAt";
-	$updName = defined(DB_UPDAT_NAME)?DB_UPDAT_NAME:"updAt";
+	$regName = get_conf("DB_REGAT_NAME","regAt");
+	$updName = get_conf("DB_UPDAT_NAME","updAt");
 	
 	$hasRegStamp = array_key_exists($regName,$schema);
 	if($hasRegStamp && !in_array($regName, $cols)) $cols[] = $regName;
@@ -292,6 +294,7 @@ function db_import($table, $datas){
  		* limit : 0/default=all, 0,20=select 0~20, 21~80= select from 21 get 60 records 
  		* order : default = "" || id desc || updAt desc 
  		* useCache : false | true 
+ 		* @id : $opts[PK]=$opts["@id"]
  * @param $omit : array, fields in opts to omit.
  * @return array or false
  */
@@ -300,12 +303,15 @@ function db_make_query($table, $opts=[], $omit=[]){
 	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :join(",", $opts['fields']))
 		 : (isset($opts['fields'])? $opts['fields']:'*');
 	$optStr = "";
-	$schema = db_schema($table)["schema"];
-	$eg = strtolower(DB_ENGINE); 
+	$schemaDef = db_schema($table);
+	$schema = $schemaDef["schema"];
+	$pk = $schemaDef["general"]["pk"];
+	$eg = strtolower(get_conf("DB_ENGINE")); 
 	global $QUERY_FILTERS;
 	if(Arrays::isHash($opts)){
 		foreach ($opts as $k => $v){
 			if(in_array($k,$omit))continue;
+			if($k=="@id")$k=$pk;
 			if(is_callable($v)){ /*$k = key=value, $v = function($k,$v){return "$k > '$v'";} */
 				list($key,$value)=explode("=", $k);
 				$val = $v($key, $value);
@@ -371,7 +377,8 @@ function db_update($table, $data, $opts=[]){
 }
 
 function db_migrate($table){
-	$sql = sprintf("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s';", DB_DB, $table);
+	$dbn = get_conf("DB_DB");
+	$sql = sprintf("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s';", $dbn, $table);
 	$res = db_count($sql, false);
 	if ($res<=0 ){//schema doesn't exist
 		$schema_def = db_schema($table);
@@ -387,9 +394,9 @@ function db_migrate($table){
 			$parts = explode("|", $pk);
 			$pkName = $parts[0];
 			$keys = $parts[1];
-			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, DB_DB, $table, $colStmt, $pkName, $keys, $incStmt);
+			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, $dbn, $table, $colStmt, $pkName, $keys, $incStmt);
 		}else{
-			$sql = sprintf(FORMAT_CREATE_DB, DB_DB, $table, $colStmt, $pk, $incStmt);
+			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $table, $colStmt, $pk, $incStmt);
 		}
 		$res = db_exec($sql);
 	}
@@ -414,8 +421,9 @@ function db_migrate($table){
  * */
 function db_save($table, $data, $returnId=false, $bson=false){
 	if(!isset($table) || !Arrays::isHash($data) || Arrays::isEmpty($data))return false;
-	$regName = defined(DB_REGAT_NAME)?DB_REGAT_NAME:"regAt";
-	$updName = defined(DB_UPDAT_NAME)?DB_UPDAT_NAME:"updAt";
+	$regName = get_conf("DB_REGAT_NAME","regAt");
+	$updName = get_conf("DB_UPDAT_NAME","updAt");
+	
 	$schema_def = db_schema($table);
 	$schema = $schema_def["schema"];
 	$pk = $schema_def["general"]["pk"];
@@ -465,7 +473,7 @@ function db_save($table, $data, $returnId=false, $bson=false){
 function db_schema($schemaName){
 	$schemaDef = cache_get("SCHEMA_$schemaName", function($key){
 		$schemaname = str_replace("SCHEMA_","",$key);
-		$schemaDef = @parse_ini_file(SCHEMA_DIR.$schemaname.".ini", true);
+		$schemaDef = @parse_ini_file(APP_DIR.__SLASH__."conf".__SLASH__."schemas".__SLASH__.$schemaname.".ini", true);
 		if(!$schemaDef){
 			//error_log("schema=".LIBER_DIR."common/schemas/".$schemaname.".ini");
 			$schemaDef = @parse_ini_file(LIBER_DIR."common/schemas/".str_replace("liber_","",$schemaname).".ini", true);
@@ -510,7 +518,7 @@ function db_trans($querys){
 				}else{
 					if(Strings::startsWith(strtolower($q), "select")){
 						$statement = $db->prepare($q);
-						if ($statement->execute() == FALSE) {
+						if ($statement->execute() == false) {
 							continue;
 						}
 						$res = $statement->fetchAll(PDO::FETCH_ASSOC);//FIXME PDO option
