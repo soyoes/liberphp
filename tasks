@@ -1,0 +1,84 @@
+
+*: conf.ini -> conf.php
+*: test Xss (patterns)
+*: test db injection (patterns)
+*: test filters
+*: add query commands to arrays
+*: oauth2 server/client
+
+----
+Optimizing
+// move session outside to authfilter?
+// Apache 
+	//mod_deflate mod_gzip
+	//allowoverride =none
+// render empty script -> html
+// ob output buffering?
+// unset big []
+// close db connection
+// use single ' instead of "
+// avoid global
+// error_log
+//$row['id'] $row[id]
+// __set, __get
+// preg_match -> strncasecmp, strpbrk, stripos ?
+// use strstr/stristr instead of str_replace > preg_replace
+	// ctype_alnum, ctype_alpha, ctype_digit 
+// check @
+
+
+-------------
+/**Security test
+ * CrossSite:
+ *		CSRF/XSRF:stole your session to submit attack form => random nonce/token
+ *			Session Fixation:
+ *			Session Hijacking:
+ *				http://www.phppro.jp/school/security/vol3/2
+ *				http://phpsec.org/projects/guide/4.html
+ * 		Xss: URL attack => sanitizing(escape &, <> of url)	
+ * 				http://www.phppro.jp/school/security/vol2/1
+ * 		Click Jacking => use liberjs 
+ * Injection:
+ * 		SQL:1) use statement->excecute, 2) dbx_escape_string()
+ * 			
+ * 		Cookie : => 1)escape Cookie %, 2)check if header value contains \n
+ * 		Directory Traversal => check ../->escape
+ * Network exploit:
+ *		DoS: Traffic attack
+ * vulnerability:
+ * 		Buffer Overrun/Overflow:submit very long data => check length
+ * 		Off-by-one error/OBOE : Over the range e.g. a=1/0 => check range
+ * 		Object-method visibility, global variable
+ */
+
+-----
+php.ini
+
+-----
+
+direct .php   13
+liber .php   15		without include core.inc	(2)
+
+liber .php 16-19 put all source into this php		(1-4)
+liber .php 26-32 include Core.inc only				(13-21)
+liber .php 82-101 include source from APC			(67-86)
+liber .php 31-36 Session::start use memcached		(5)
+
+liber top/test echo(no session) dispatching 36-41 	(5) 
+liber top/test echo 40-46
+
+liber top/test render template 43-49			(3)
+
+
+14-15
+liber (all-in-one) include 				16-19 			(2-5)
+liber dispatching						20-24			(4-5)
+liber session:start						22-26			(2-5)
+liber top/test->echo					25-30 			(1-4)
+liber top/test->render 					29-34 			(4)
+liber top/json		 					
+liber @tasks(no cache)		 			57-64 			(4)
+liber @tasks(with cache)		 		
+
+
+

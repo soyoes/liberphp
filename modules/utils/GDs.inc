@@ -25,9 +25,9 @@ class GDs{
 	public static function image($out, $bg, $target, $x, $y, $w=null, $h=null){
 		self::preload();
 		try{
-			$bg = Strings::startsWith($bg, "/")? $bg:self::$import_dir.$bg;
-			$target = Strings::startsWith($target, "/")? $target:self::$import_dir.$target;
-			$out = Strings::startsWith($out, "/")? $out:self::$export_dir.$out;
+			$bg = str_starts($bg, "/")? $bg:self::$import_dir.$bg;
+			$target = str_starts($target, "/")? $target:self::$import_dir.$target;
+			$out = str_starts($out, "/")? $out:self::$export_dir.$out;
 			$imgs = array();
 			foreach (array($bg, $target) as $filename){
 				$parts = explode(".",$filename);
@@ -62,8 +62,8 @@ class GDs{
 		self::preload();
 		try{
 			//putenv('GDFONTPATH=' . realpath('.'));
-			$bg = Strings::startsWith($bg, "/")? $bg:self::$import_dir.$bg;
-			$out = Strings::startsWith($out, "/")? $out:self::$export_dir.$out;
+			$bg = str_starts($bg, "/")? $bg:self::$import_dir.$bg;
+			$out = str_starts($out, "/")? $out:self::$export_dir.$out;
 			
 			$parts = explode(".",$bg);
 			$ext = $parts[count($parts)-1];
@@ -120,8 +120,8 @@ class GDs{
 			$ext = $parts[count($parts)-1];
 			if($ext == "jpg") $ext = "jpeg";
 			$func_name = "imagecreatefrom".$ext;
-			$bg = Strings::startsWith($bg, "/")? $bg:self::$import_dir.$bg;
-			$out = Strings::startsWith($out, "/")? $out:self::$export_dir.$out;
+			$bg = str_starts($bg, "/")? $bg:self::$import_dir.$bg;
+			$out = str_starts($out, "/")? $out:self::$export_dir.$out;
 			$img = call_user_func($func_name, $bg);
 			foreach ($objects as $obj){
 				$type = $obj["type"];
@@ -131,7 +131,7 @@ class GDs{
 					$url = $obj["url"];
 					if(!isset($url)||empty($url))
 						continue;
-					$full_path =Strings::startsWith($url, "/")||Strings::startsWith($url, "http")? $url:self::$import_dir.$url;
+					$full_path =str_starts($url, "/")||Strings::startsWith($url, "http")? $url:self::$import_dir.$url;
 					$parts = explode(".",$full_path);
 					$ext_target = $parts[count($parts)-1];
 					if($ext_target == "jpg") $ext_target = "jpeg";

@@ -29,14 +29,14 @@ class Auth extends Annotation{
 	static public function login($email, $pass, $type="users"){
 		$model = Model::factory($type);
 		$user = $model->findFirst("email='$email' and id>0");
-		if(Arrays::isEmpty($user)){
+		if(empty($user)){
 			return AUTH_NOT_EXIST;
 		}
 		$upass = $user["pass"];
 		if(md5($pass)!=$upass){
 			return AUTH_WRONG_PASSWORD;
 		}
-		if(Arrays::isEmpty($_SESSION)){
+		if(empty($_SESSION)){
 			session_start();
 		}
 		$_SESSION["uid"]=$user["id"];

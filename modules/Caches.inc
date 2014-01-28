@@ -95,11 +95,11 @@ function cache_load(){
  * @return false | Memcached object
  */
 function mc_conn(){
-	$conn = new Memcached(APP_NAME);
-	if(!defined("CACHE_HOSTS")){
+	if(empty(Consts::$cache_hosts)){
 		return false;
 	}else{
-		$hosts=explode(",", get_conf("CACHE_HOSTS"));
+		$conn = new Memcached(APP_NAME);
+		$hosts=explode(",", Consts::$cache_hosts);
 		$ss = $conn->getServerList();
 		if (empty ( $ss )) {
 			$conn->setOption(Memcached::OPT_RECV_TIMEOUT, 1000);

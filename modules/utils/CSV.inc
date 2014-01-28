@@ -1,6 +1,6 @@
 <?php
 /**
- * hr
+ * CSV export
  */
 
 class CSV{
@@ -13,7 +13,7 @@ class CSV{
 	public static function export($file,$data,$titles=null){
 		header('Content-Encoding: UTF-8');
 		header('Content-type: text/csv; charset=UTF-8');
-		if(!Strings::contains($file, ".csv"))
+		if(!str_has($file, ".csv"))
 			$file .= ".csv";
         header( 'Content-Disposition: attachment;filename='.$file);
         $fp = fopen('php://output', 'w');
@@ -33,7 +33,7 @@ class CSV{
 		foreach ($data as &$d){
 			$row = array();
 			foreach ($titles as $col=>$label){
-				$v = Arrays::get($d, $col);
+				$v = hash_get($d, $col);
 				$row[] = $v;
 			}
 			fputcsv($fp, $row);

@@ -25,24 +25,9 @@ class Mails {
 		self::send(APP_ADMIN_MAIL, $to, $subject, $message);
 	}
 	
-	/**
-	 * get mail text & replace keywords
-	 * 
-	 * master : conf/masters/mails.json
-	 * 
-	 * $keyPath: keyPath in mails.json
-	 * 
-	 * $replacement: words you want to replace. 
-	 * 		for example: array('event_name', $e['name']);
-	 * 					this will replace all '%event_name%' in texts to $e['name']
-	 * 
-	 * */
-	static public function getText($keyPath,$replacement=array()){
-		
-	}
-	
+	//FIXME
 	static public function render($template,$data){
-		$appName = Strings::contains( $_SERVER['REQUEST_URI'],"/".APP_NAME."/")?"/".APP_NAME:"";
+		$appName = str_has( $_SERVER['REQUEST_URI'],"/".APP_NAME."/")?"/".APP_NAME:"";
 		$render = new Smarty();
 		$tmpdir = APP_DIR.__SLASH__."tmp".__SLASH__;
 		
@@ -51,7 +36,7 @@ class Mails {
 		$render->setCacheDir($tmpdir.'cache');
 		$render->setConfigDir($tmpdir.'configs');
 		$render->assign('CLIENT_TYPE',$_REQUEST['client_type']);
-		if(!Strings::endsWith($template, ".html"))
+		if(!str_ends($template, ".html"))
 			$template .= '.html';
 		$render->assign("template",$template);
 		foreach ($data as $k=>$v){

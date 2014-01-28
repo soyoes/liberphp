@@ -32,7 +32,7 @@ abstract class Filter{
 	
 	
 	public static function factory($type){
-		if (require_once 'filters'.__SLASH__. ucfirst($type) . 'Filter.inc') {
+		if (include 'filters'.__SLASH__. ucfirst($type) . 'Filter.inc') {
             $classname = strtoupper($type[0]).substr($type,1).'Filter';
             return new $classname;
         } else {

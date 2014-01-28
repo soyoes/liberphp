@@ -100,7 +100,7 @@ class Binary {
     function getSBits($width){
     	$s = $this->getBits($width);
     	$this->step(-1*$width);
-    	if(!Strings::contains($s, "0")){
+    	if(!str_has($s, "0")){
     		$this->getUIBits($width);
     		$width *= 2;
     	} 

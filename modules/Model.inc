@@ -17,10 +17,11 @@ class Model extends Observable implements Observer{
 	
 	private function __construct(){}
 	
-	/*
-	 * 	get a new model instance 
-	 * 	@function $schemaName : null -> binds nothing, tablename -> binds a certain table name
-	 *  @return Model
+	
+	/**
+	 * 	Get a new model instance 
+	 * 	@param $schemaName : null -> binds nothing, tablename -> binds a certain table name
+	 *  @return : Model
 	 */
 	public static function factory($schemaName){
 		try{
@@ -28,7 +29,7 @@ class Model extends Observable implements Observer{
 				throw Exception("Model must have a schema name");
 			$model = new Model();
 	        $db = null;
-	        if(Strings::contains($schemaName, '.')){
+	        if(str_has($schemaName, '.')){
 	        	list($db, $schemaName) = explode('.', $schemaName);
 	        	$model->db = $db;
 	        } 
@@ -58,18 +59,6 @@ class Model extends Observable implements Observer{
 		}catch(Exception $e){
 			throw new Exception($schemaName.' schema file not found');
 		}
-	}
-	
-	/**
-	 * @param hash $data		: {tag:'mytag',regAt=1023434555}
-	 * @param string $condition : tag='mytag'
-	 */
-	public function addIfNotExist($data,$condition){
-		$cols = "`".join("`,`",array_keys($data))."`";
-		$values = "'".(join("','",array_values($data)))."'";
-		$table = $this->table;
-		$sql = "insert into $table ($cols) SELECT $values from $table where not exists (select id from $table where $condition) limit 1;";
-		db_exec($sql);
 	}
 	
 	/**
@@ -109,11 +98,10 @@ class Model extends Observable implements Observer{
 				$pkName = $this->pk;
 			if(!isset($this->table))
 				return null;
-			$pk = is_string($id) ? "'". mysql_escape_string($id). "'":$id;
 			if($cols==null) $cols ="*";
-			$sql = "SELECT ".$cols." FROM ".$this->table." WHERE `".$pkName."`=".$pk." LIMIT 1";
+			$sql = "SELECT ".$cols." FROM ".$this->table." WHERE `".$pkName."`=:$pkName LIMIT 1";
 			error_log($sql);
-			$res = db_query($sql,$useCache);
+			$res = db_query($sql,[$pkName=>$id],$useCache);
 		    $data = $res[0];
 		    $this->data = $data;
 		    return $data;
@@ -136,12 +124,11 @@ class Model extends Observable implements Observer{
 		if(is_array($optsOrPk)){
 			$ops = db_make_query($this->table, $optsOrPk, ["order","fields"]);
 			$sql = "DELETE FROM ".$this->table." ".$ops[1];
+			return db_query($sql, $ops[2]);
 		}else{
-			$pk = is_string($optsOrPk) ? '"'. mysql_escape_string($optsOrPk). '"' : $optsOrPk;
-			$sql = "DELETE FROM ".$this->table." WHERE `".$this->pk."`=".$pk;
+			$sql = "DELETE FROM ".$this->table." WHERE `".$this->pk."`=:".$this->pk;
+			return db_query($sql, [$this->pk=>$optsOrPk]);
 		}
-		error_log($sql);
-		return db_exec($sql);		
 	}
 	
 	/**
@@ -169,66 +156,27 @@ class Model extends Observable implements Observer{
         return $this->$key;
 	}
 
-	/*
-	 * FIXME
-	 * $m->upd
-	 * */
-	public function upd($conditions, $changes){
-		$constr = array();
-		foreach ($conditions as $k=>$v){
-			$v = (is_string($v)) ? "'$v'":$v; 
-			$constr[]= "`$k`=$v";
-		}
-		$constr = join(" AND ", $constr);
-
-		$chstr = array();
-		foreach ($changes as $k=>$v){
-			$v = (is_string($v)) ? "'$v'":$v; 
-			$chstr[]= "$k=$v";
-		}
-		$chstr = join(", ", $chstr);
-		
-		$sql ="update ".$this->table." set $chstr where $constr";
-		db_exec($sql);
-	}
 	
-	/* (non-PHPdoc)
+	/** (non-PHPdoc)
 	 * Delegate method of Observer !!
 	 * @see Observer::update()
 	 */
 	public function update(Observable $obj, $args){
 		if(isset($this->schema[$args["key"]])){
 			$v = $args["val"];
-			if(is_string($v) && Strings::contains($this->schema[$args['key']], "int"))
+			if(is_string($v) && str_has($this->schema[$args['key']], "int"))
 				$v = (int) $v;
 			$this->changes[$args['key']] = $v;
 		}
 	}
 	
 	public function get($keyPath){
-		return Arrays::get($this->data, $keyPath);
+		return hash_get($this->data, $keyPath);
 	}
 	
 	public function setDB($db){
 		$this->db= $db;
 	}
 	
-	
-	/**
-	 * increase counter
-	 * @param str $condition : tag="mytag"
-	 * @param str $col :	tag
-	 * @param mixed $value
-	 */
-	public function inc($condition,$col,$value=1){
-		$sql = "update ".$this->table." set `$col`=`$col`+1 where $condition";
-		db_exec($sql);
-	} 
-	
-	public function replace($col, $from, $to){
-		$table = $this->table;
-		$sql = "UPDATE `$table` SET $col=REPLACE ($col,'$from','$to');";
-		db_exec($sql);
-	}
 	
 }

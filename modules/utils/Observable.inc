@@ -35,7 +35,7 @@ class Observable{
   	public function set($keyPath, $val){
   		if(!isset($this->data)) 
   			$this->data = array();
-  		$change = Arrays::set($this->data, $keyPath, $val);
+  		$change = hash_set($this->data, $keyPath, $val);
 		$this->notify($change);
   	}
   	

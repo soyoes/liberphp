@@ -15,51 +15,6 @@ if (!apc_load_constants("DB_FMTS")){
 	]);
 }
 
-$QUERY_REGEXP_OP = ["mysql"=>"REGEXP","postgres"=>"~"];
-
-/*
- * Test cases
-	"id"=> 16
-	"id@>"=>16,
-	"id@<"=>16,
-	"id@>="=>16,
-	"id@<="=>16,
-	"lng@[]"=>[1,3,55],
-	"lng@![]"=>[],
-	"lng@![]"=>[2,4],
-	"lat@()"=>[153, 340],
-	"lat@!()"=>[999, 20],
-	"title@?"=>"cocoa",
-	"title@!?"=>"co%coa",
-	"title@~"=>"/^My/",
-	"title@~~"=>"^My",
-	"title@!~~"=>"'"
- * */
-$QUERY_FILTERS = [
-	"=" 	=> function($k,$v){return "`$k`=".db_v($v);},
-	"!" 	=> function($k,$v){return "`$k`!=".db_v($v);},
-	"<" 	=> function($k,$v){return "`$k`<".db_v($v);},
-	">" 	=> function($k,$v){return "`$k`>".db_v($v);},
-	"<=" 	=> function($k,$v){return "`$k`<=".db_v($v);},
-	">=" 	=> function($k,$v){return "`$k`>=".db_v($v);},
-	"[]" 	=> function($k,$v){if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` IN (".join(",",$vs).")";},
-	"![]" 	=> function($k,$v){if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` NOT IN (".join(",",$vs).")";},
-	"()" 	=> function($k,$v){if(count($v)!=2)return false; return "(`$k` BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
-	"!()" 	=> function($k,$v){if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
-	"?"  	=> function($k,$v){if(!Strings::contains($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";},
-	"!?"  	=> function($k,$v){if(!Strings::contains($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";},
-	"~" 	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";}, 
-			//Regexp only mysql or regexp
-			/*	@example db_find("users", ["title@~" => "^My"]) == select * from users where title regexp '^My'
-			 	For MySQL : these are available
-			 	^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
-			 */
-	"!~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-	"~~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-	"!~~"	=> function($k,$v){global $QUERY_REGEXP_OP;$op = $QUERY_REGEXP_OP[strtolower(get_conf("DB_ENGINE"))];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-			//Regexp with ignorecase option only mysql or regexp
-];
-
 /**
  * get connection handler of PDO
  * @param opts:use conf.ini as default
@@ -68,9 +23,8 @@ $QUERY_FILTERS = [
 function db_conn($opts=null){
 	$db = REQ::getDB();
 	if(!isset($db)){
-		$host = (strcmp(get_conf("DB_HOST"), "localhost")==0) ? "127.0.0.1" : get_conf("DB_HOST");
-		$conn_str = strtolower(get_conf("DB_ENGINE")).":host=".$host.";port=".get_conf("DB_PORT").";dbname=".get_conf("DB_DB").";charset=utf8";
-		$db = new PDO($conn_str,get_conf("DB_USER"),get_conf("DB_PASS"),
+		$conn_str = Consts::$db_engine.":host=".Consts::$db_host.";port=".Consts::$db_port.";dbname=".Consts::$db_name.";charset=utf8";
+		$db = new PDO($conn_str,Consts::$db_user,Consts::$db_pass,
 				[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 		REQ::setDB($db);
 	}
@@ -80,26 +34,36 @@ function db_conn($opts=null){
 /**
  * exec query SQL like select ...
  * @param $sql: sql statement with ?.
- * @param $datas: variables inside sql.
+ * @param $datas: variables inside sql statement.
  * @param $useCache: whether save/load result from APC/Memcache
  * @param $PDOOpt: FETCH_COLUMN, FETCH_ASSOC ...
  * @return array or assoc array.
+ * 
+ * @example : 
+ * 	db_query("select * from tasks");
+ * @example : 
+ * 	db_query("select * from tasks where `id`=:id",[id=>1]);
+ * @example : 
+ * 	db_query("select * from tasks where `id`=?",[1]);
  */
-function db_query($sql, $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
+function db_query($sql, $datas=[], $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
 	try {
-		if ($useCache) {
-			$value = cache_get($sql);
+		$key = $sql;
+		$isQeury = str_starts(strtolower($sql), "select");
+		if ($useCache && $isQeury) {
+			$key = $sql."-".json_encode($datas);
+			$value = cache_get($key);
 			if (isset ( $value ) && $value != false)
 				return $value;
 		}
 		$db = db_conn();
 		$statement = $db->prepare($sql);
 		//var_dump($statement);
-		if ($statement->execute () == FALSE) {
+		if ($statement->execute ($datas) == FALSE) {
 			return null;
 		}
-		$res = $statement->fetchAll($PDOOpt);
-		if ($useCache && $res != null) {
+		$res =$isQeury? $statement->fetchAll($PDOOpt):true;
+		if ($useCache && $isQeury && $res != null) {
 			cache_set($key, $res);
 		}
 		return $res;
@@ -111,33 +75,18 @@ function db_query($sql, $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
 }
 
 /**
-* exec $sql like update, insert ...
-* return true->success/ false->failed
-*/
-function db_exec($sql){
-	try {
-		$db = db_conn();
-		return $db->exec($sql);
-	} catch (PDOException $e) {
-		error_log("DB_ERR Exec :",$sql);
-		return false;
-	}
-}
-
-/**
  * return number result of "SELECT COUNT"
  */
-function db_count($sql=null, $useCache=false){
+function db_count($sql=null, $datas=[], $useCache=false){
 	try {
 		if($useCache){
 			$value = cache_get($sql);
 			if(isset($value) && $value!=false)
 				return $value;
 		}
-		
 		$db = db_conn();
 		$sth = $db->prepare($sql);
-		$sth->execute();
+		$sth->execute($datas);
 		$res = $sth->fetchColumn();
 		if($useCache && $res){
 			cache_set($sql, $res);
@@ -193,13 +142,13 @@ function db_attr($attr, $val){
  * 
  */
 function db_find($table, $opts=[], $withCount=false){
-	list($colStr, $optStr) = db_make_query($table, $opts);
+	list($colStr, $optStr,$datas) = db_make_query($table, $opts);
 	$sql = "SELECT ".$colStr." FROM ".$table.$optStr;
 	error_log("SEARCH: ".$sql);
-	$res = db_query($sql, $opts["useCache"]);
+	$res = db_query($sql, $datas, $opts["useCache"]);
 	if($withCount){
 		$sql = "SELECT count(*) FROM ".$table.preg_replace("/ORDER BY\s*(.*)\s*([LIMIT .*]*)/", '${3}',$optStr);
-		$cnt = db_count($sql, $opts["useCache"]);
+		$cnt = db_count($sql, $datas, $opts["useCache"]);
 		return ["count"=>$cnt,"result"=>$res];
 	}else{
 		return $res;
@@ -252,8 +201,8 @@ function db_import($table, $datas){
 		$cols = array_unique(array_merge($cols,array_keys($d)));
 	}
 	
-	$regName = get_conf("DB_REGAT_NAME","regAt");
-	$updName = get_conf("DB_UPDAT_NAME","updAt");
+	$regName = Consts::$schema_reg;
+	$updName = Consts::$schema_upd;
 	
 	$hasRegStamp = array_key_exists($regName,$schema);
 	if($hasRegStamp && !in_array($regName, $cols)) $cols[] = $regName;
@@ -281,7 +230,7 @@ function db_import($table, $datas){
 		fwrite($handle, $sql);
 	}else{
 		//error_log("DB::import ".$sql);
-		db_exec($sql);
+		db_query($sql);
 	}
 }
 
@@ -299,6 +248,48 @@ function db_import($table, $datas){
  * @return array or false
  */
 function db_make_query($table, $opts=[], $omit=[]){
+	/*Test cases
+	 "id"=> 16
+	"id@>"=>16,
+	"id@<"=>16,
+	"id@>="=>16,
+	"id@<="=>16,
+	"lng@[]"=>[1,3,55],
+	"lng@![]"=>[],
+	"lng@![]"=>[2,4],
+	"lat@()"=>[153, 340],
+	"lat@!()"=>[999, 20],
+	"title@?"=>"cocoa",
+	"title@!?"=>"co%coa",
+	"title@~"=>"/^My/",
+	"title@~~"=>"^My",
+	"title@!~~"=>"'"
+	**/
+	if(empty(Consts::$db_query_filters))
+		Consts::$db_query_filters = [
+		"=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`=:$k";},
+		"!" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`!=:$k";},
+		"<" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<:$k";},
+		">" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>:$k";},
+		"<=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<=:$k";},
+		">=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>=:$k";},
+		"[]" 	=> function($k,$v,&$o){if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` IN (".join(",",$vs).")";},
+		"![]" 	=> function($k,$v,&$o){if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` NOT IN (".join(",",$vs).")";},
+		"()" 	=> function($k,$v,&$o){if(count($v)!=2)return false; return "(`$k` BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
+		"!()" 	=> function($k,$v,&$o){if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
+		"?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";},
+		"!?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";},
+		"~" 	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		//Regexp only mysql or regexp
+		/*	@example db_find("users", ["title@~" => "^My"]) == select * from users where title regexp '^My'
+		 For MySQL : these are available
+		^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
+		*/
+		"!~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		"~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		"!~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		//Regexp with ignorecase option only mysql or regexp
+	];
 	if(!isset($table))return false;
 	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :join(",", $opts['fields']))
 		 : (isset($opts['fields'])? $opts['fields']:'*');
@@ -306,9 +297,9 @@ function db_make_query($table, $opts=[], $omit=[]){
 	$schemaDef = db_schema($table);
 	$schema = $schemaDef["schema"];
 	$pk = $schemaDef["general"]["pk"];
-	$eg = strtolower(get_conf("DB_ENGINE")); 
-	global $QUERY_FILTERS;
-	if(Arrays::isHash($opts)){
+	$eg = Consts::$db_engine;
+	$data = [];
+	if(is_hash($opts)){
 		foreach ($opts as $k => $v){
 			if(in_array($k,$omit))continue;
 			if($k=="@id")$k=$pk;
@@ -317,11 +308,14 @@ function db_make_query($table, $opts=[], $omit=[]){
 				$val = $v($key, $value);
 				$optStr.= !empty($optStr) ? " AND $val ": " WHERE $val ";
 			}else{
-				list($k,$cmd) = explode("@",$k); 
+				list($k,$cmd) = explode("@",$k);
 				if(array_key_exists($k, $schema)){
 					$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
-					$vStr =  $QUERY_FILTERS[$cmd]($k, $v);
-					$optStr.= !empty($optStr) ? " AND ". $vStr : " WHERE ".$vStr;
+					$cmd = strpbrk($cmd, 'begilmnqt') ? Consts::$query_filter_names[$cmd]:$cmd;
+					error_log($cmd);
+					$vStr =  Consts::$db_query_filters[$cmd]($k, $v, $data);
+					if($vStr)
+						$optStr.= !empty($optStr) ? " AND ". $vStr : " WHERE ".$vStr;
 				}	
 			}
 		}
@@ -332,14 +326,14 @@ function db_make_query($table, $opts=[], $omit=[]){
 	}else {
 		$optStr = !empty($opts)? " WHERE ". $opts : "";
 	}
-	return [$colStr,$optStr];
+	return [$colStr,$optStr,$data];
 }
 
 function db_exists($table, $id){
 	if(!isset($table) || !isset($id))
 		return false;
 	$pk = db_schema($table)["general"]["pk"];
-	$entity = db_count("select count(*) from $table where `$pk`=".db_v($id));
+	$entity = db_count("select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
 	return $entity>0;
 }
 
@@ -350,10 +344,10 @@ function db_exists($table, $id){
  * @example : db_update("tasks",[groupId=>3]); //delete from ... where groupId=3
  * */
 function db_delete($table, $opts){
-	if(!isset($table) || Arrays::isEmpty($opts))
-		return false;
-	$sql = "DELETE FROM $table ".db_make_query($table, $opts,["order","limit","fields"])[1];
-	return db_exec($sql);
+	if(empty($opts))return false;
+	list($cs,$optStr,$data) = db_make_query($table, $opts,["order","limit","fields"]);
+	$sql = "DELETE FROM $table ".$optStr;
+	return db_query($sql,$data);
 }
 
 /**
@@ -364,7 +358,7 @@ function db_delete($table, $opts){
  * @example : db_update("tasks",[groupId=>3],["id@>"=>38]); //set groupId=3 where id>38
  * */
 function db_update($table, $data, $opts=[]){
-	if(!isset($table) || Arrays::isEmpty($data) || !Arrays::isHash($data))
+	if(!isset($table) || empty($data) || !is_hash($data))
 		return false;
 	$vStrs = [];
 	$schema = db_schema($table)["schema"];
@@ -372,14 +366,15 @@ function db_update($table, $data, $opts=[]){
 		$vStrs[]="`$k`=".db_v($v, $schema[$k]);
 	} 
 	$vStrs = join(",",$vStrs);
-	$sql = "UPDATE $table SET $vStrs ".db_make_query($table, $opts, ["order","limit","fields"])[1];
-	return db_exec($sql);
+	list($cs,$optStr,$data) = db_make_query($table, $opts,["order","limit","fields"]);
+	$sql = "UPDATE $table SET $vStrs ".$optStr;
+	return db_query($sql,$data);
 }
 
 function db_migrate($table){
-	$dbn = get_conf("DB_DB");
+	$dbn = Consts::$db_name;
 	$sql = sprintf("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s';", $dbn, $table);
-	$res = db_count($sql, false);
+	$res = db_count($sql,[], false);
 	if ($res<=0 ){//schema doesn't exist
 		$schema_def = db_schema($table);
 		$schema = $schema_def["schema"];
@@ -390,7 +385,7 @@ function db_migrate($table){
 		}
 		$incStmt = "";
 		$sql = "";
-		if (Strings::contains($pk, "|")){
+		if (str_has($pk, "|")){
 			$parts = explode("|", $pk);
 			$pkName = $parts[0];
 			$keys = $parts[1];
@@ -398,7 +393,7 @@ function db_migrate($table){
 		}else{
 			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $table, $colStmt, $pk, $incStmt);
 		}
-		$res = db_exec($sql);
+		$res = db_query($sql);
 	}
 	echo "Created ".$table."</br>\n";
 }
@@ -420,9 +415,9 @@ function db_migrate($table){
  * 
  * */
 function db_save($table, $data, $returnId=false, $bson=false){
-	if(!isset($table) || !Arrays::isHash($data) || Arrays::isEmpty($data))return false;
-	$regName = get_conf("DB_REGAT_NAME","regAt");
-	$updName = get_conf("DB_UPDAT_NAME","updAt");
+	if(!isset($table) || !is_hash($data) || empty($data))return false;
+	$regName = Consts::$schema_reg;
+	$updName = Consts::$schema_upd;
 	
 	$schema_def = db_schema($table);
 	$schema = $schema_def["schema"];
@@ -432,12 +427,14 @@ function db_save($table, $data, $returnId=false, $bson=false){
 		$data[$updName] = Dates::format();
 	$sql = "";
 	$isUpdate = isset($id) && db_exists($table, $id);
+	$qdatas = [];
 	if ($isUpdate){	//update
 		cache_del($table."_".$id);
 		foreach ($data as $col => $val){
 			if($col==$pk || !isset($schema[$col]))continue;
 			if(!empty($colStmt))$colStmt .= ",";
-			$colStmt .= "`$col`=".db_v($val, $schema[$col], $bson);
+			$colStmt .= "`$col`=:$col ";
+			$qdatas[$col]=db_v($val, $schema[$col], $bson);
 		}
 		$sql = sprintf(FORMAT_UPDATE_DB, $table, $colStmt, $pk, db_v($id));
 	}else{						//insert
@@ -448,17 +445,20 @@ function db_save($table, $data, $returnId=false, $bson=false){
 			if(!empty($colStmt))$colStmt .= ",";
 			if(!empty($valStmt))$valStmt .= ",";
 			$colStmt .= "`$col`";
-			$valStmt .= db_v($val, $schema[$col], $bson);
+			$valStmt .=":$col";
+			$qdatas[$col]=db_v($val, $schema[$col], $bson);
 		}
 		//$ignore = $ignoreErrors ? "IGNORE" : "";
 		$sql = sprintf(FORMAT_INSERT_DB, $ignore, $table, $colStmt, $valStmt);
 	}
 	try {
 		if($returnId==true && !$isUpdate) {
-			$res = db_trans([$sql, "SELECT LAST_INSERT_ID() as 'last_id'"]);
+			echo ($sql."\n");
+			var_dump($qdatas);
+			$res = db_trans([$sql, "SELECT LAST_INSERT_ID() as 'last_id'"],[$qdatas]);
 			$data["id"] = $res[0]["last_id"];
 		}else{
-			db_exec($sql);
+			db_query($sql,$qdatas);
 		}
 		return $data;
 	} catch (PDOException $e) {
@@ -498,7 +498,7 @@ function db_schema($schemaName){
  * 		$rs = db_trans(["update tasks set members='dds' where id=35", "select * from tasks where id=35"]);
 		echo json_encode($rs);
  * */
-function db_trans($querys){
+function db_trans($querys,$datas){
 	if(!isset($querys))
 		return false;
 	$db = db_conn();
@@ -512,18 +512,19 @@ function db_trans($querys){
 		if(is_callable($querys)){
 			$cnt = $querys($db);
 		}else if(is_array($querys)){
+			$i=0;
 			foreach($querys as $q){
+				$i++;
 				if($q==="@rollback"){
 					$db->rollBack();$cnt--;
 				}else{
-					if(Strings::startsWith(strtolower($q), "select")){
-						$statement = $db->prepare($q);
-						if ($statement->execute() == false) {
-							continue;
-						}
+					$statement = $db->prepare($q);
+					$data = isset($datas[$i-1])?$datas[$i-1]:[];
+					if ($statement->execute($data) == false) {
+						continue;
+					}
+					if(str_starts(strtolower($q), "select")){
 						$res = $statement->fetchAll(PDO::FETCH_ASSOC);//FIXME PDO option
-					}else {
-						$r = $db->exec($q);
 					}
 					$cnt++;
 				}
@@ -544,12 +545,12 @@ function db_trans($querys){
 function bson_enc($arr){
 	$str = json_encode($arr);
 	$str = str_replace("\\", "", $str);
-	return Strings::str2hex($str);
+	return str2hex($str);
 }
 
 function bson_dec($bson){
 	if(isset($bson)){
-		$json = Strings::hex2str($bson);
+		$json = hex2str($bson);
 		return json_decode($json,true);
 	}
 	return false;
@@ -573,7 +574,7 @@ function db_v($v, $typeDef="", $bsonText=false){
 				: "'".mysql_escape_string(json_encode($v))."'";
 	}
 	if(is_string($v)){
-		if(preg_match("/bigint/i", $typeDef) && Strings::contains($v, "-"))
+		if(preg_match("/bigint/i", $typeDef) && str_has($v, "-"))
 			return strtotime($v);
 		if(preg_match("/(int|byte)/i", $typeDef))
 			return (int)$v;

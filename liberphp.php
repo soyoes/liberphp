@@ -1,4 +1,4 @@
-#!/opt/local/bin/php54
+#!/opt/local/bin/php
 <?php
 /**
  *	@file: migrate.php
@@ -41,7 +41,8 @@ function create(){
 	$path = join("/",array_slice($path, 0, count($path)-2))."/".$proj;
 	
 	//exec("cp init.inc ../$proj/");
-	exec("sed -i -e 's:/*__APP__NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/index.php");
+	exec("cp -p liber.php ../$proj/");
+	exec("sed -i -e 's:/*__APP__NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/liber.php");
 	
 	exec("cp -p liberphp.php ../$proj/");
 	exec("sed -i -e 's:/*LIBER_DIR*/:const LIBER_DIR=\"$pwd\";:g' ../$proj/liberphp.php");
@@ -64,7 +65,7 @@ Your project is created under $path
     RewriteRule  js/(.*)$ /webroot/js/$1    [L]
     RewriteRule  font/(.*)$ /webroot/font/$1    [L]
     RewriteRule  ^(.*)\.html$ /webroot/html/$1.htm    [L]
-    RewriteRule !\.(php|svg|ttf|htc|ico|gif|png|jpg|jpeg|css|js|swf|html|htm|json)$ /index.php?__URL__=%{REQUEST_URI} [QSA,NE,L]
+    RewriteRule !\.(php|svg|ttf|htc|ico|gif|png|jpg|jpeg|css|js|swf|html|htm|json)$ /liber.php?__URL__=%{REQUEST_URI} [QSA,NE,L]
 </VirtualHost>
 
 # 2) Add virtural host IP to your hosts file 
@@ -75,12 +76,9 @@ Your project is created under $path
 > cd $pwd
 > ./liberphp.php ../$proj
 
-# 4) Check out Smarty (http://www.smarty.net/download) 
-	 to $path/lib/smarty
-
-# 5) Restart your apache
+# 4)  Restart your apache
 		
-# 6) Try it by accessing http://$proj.dev
+# 5) Try it by accessing http://$proj.dev
 	
    
 EOF;
@@ -120,4 +118,65 @@ function migrate(){
 		echo "FAILED\n";
 	}
 	exit;
+}
+
+function build(){
+	global $pwd;
+	//$files = glob($pwd."/modules/*.inc");
+	$out = <<< EOF
+<?php
+/**
+ *	@file: liber.php
+ *	@author: Soyoes 2014/01/28
+ *****************************************************************************/
+const APP_NAME = '__APP__NAME__';
+const LIBER_DIR = '__LIBER__DIR__';
+const __SLASH__ = DIRECTORY_SEPARATOR;
+define('APP_DIR', dirname(__FILE__));
+
+set_include_path(
+get_include_path(). PATH_SEPARATOR
+. APP_DIR.__SLASH__.'modules'.__SLASH__
+. PATH_SEPARATOR . __SLASH__.'filters'.__SLASH__
+. PATH_SEPARATOR . __SLASH__.'libs'.__SLASH__
+. PATH_SEPARATOR . LIBER_DIR.__SLASH__. 'modules'
+. PATH_SEPARATOR . LIBER_DIR .__SLASH__. 'modules'.__SLASH__.'utils'
+);
+
+spl_autoload_register(function(\$class){
+	if(!include_once \$class.'.inc')
+		include_once \$class.'.php';
+});
+
+try{
+	REQ::dispatch();
+}catch(Exception \$e){
+	error_log(\$e->getMessages());
+	exit;
+}
+	
+EOF;
+	$files = ['Core','Lang','Session','Caches','DB','Model','Render'];
+	foreach($files as $f){
+		//echo $f."\n";
+		$str = file_get_contents($pwd."/modules/".$f.".inc");
+		$fo  = '';
+		$commentTokens = [T_COMMENT,T_DOC_COMMENT];
+		$tokens = token_get_all($str);
+		foreach ($tokens as $token) {
+			if (is_array($token)) {
+				if (in_array($token[0], $commentTokens))
+					continue;
+				$token = $token[1];
+			}
+			if( !preg_match('/^<\?php\s*$/', $token) 
+				&& !preg_match('/^\s*\?>$/', $token)){
+				$fo .= $token;
+			}
+		}
+		$fo= preg_replace(['/(require_once LIBER_DIR\.\'modules\'\.__SLASH__.*)/','/\R+/'],['',"\n"],$fo);
+		$out.=$fo;
+	}
+	$out.="\n?>";
+	file_put_contents($pwd."/liber.php", $out);
 }

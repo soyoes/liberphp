@@ -58,32 +58,21 @@
 &gt; cd ../myproj
 						</code>
 					</li>
-					<li>Check out Smarty (http://www.smarty.net/download) 
-	 						to YOUR_PROJECT_PATH/lib/smarty
-					</li>
 					<li>Configurations
 						<code>
-&gt; vi conf/conf.ini
+&gt; vi liber.php
 						</code>
 						Change the following lines
 						<code>
-[APP]
-...
-lib_dir = "YOUR_LIBERPHP_PATH"		#<- change to your own path 
-smarty_dir = "HTTP_DOCUMENT_ROOT/myproj/lib/smarty/"	#<- change to your own
-...
-[DB]
-engine = MySQL
-host = localhost			#<- change to your own
-port = 3306
-db = tasks					#<- change to your own
-user = root					#<- change to your own
-pass = root					#<- change to your own
-
-[Cache]
-engine = Memcached			
-hosts = localhost			
-port = 11211				#<- change to your own
+static $db_engine 	= "mysql";	#<- change to your own
+static $db_host		= "127.0.0.1";	
+static $db_port		= "3306";	
+static $db_name		= "tasks";	#<- change to your own
+static $db_user		= "root";	#<- change to your own
+static $db_pass		= "root";	#<- change to your own
+	
+static $cache_hosts	= "localhost";	
+static $cache_port	= "11211";	#<- change to your own
 						</code>
 					</li>
 					<li>DB migration (Option)
@@ -103,9 +92,8 @@ port = 11211				#<- change to your own
     RewriteRule  images/(.*)$ /webroot/images/$1  [L]
     RewriteRule  css/(.*)$ /webroot/css/$1    [L]
     RewriteRule  js/(.*)$ /webroot/js/$1    [L]
-    RewriteRule  font/(.*)$ /webroot/font/$1    [L]
     RewriteRule  ^(.*)\.html$ /webroot/html/$1.htm    [L]
-    RewriteRule !\.(php|svg|ttf|htc|ico|gif|png|jpg|jpeg|css|js|swf|html|htm|json)$ /index.php?__URL__=%{REQUEST_URI} [QSA,NE,L]<br>
+    RewriteRule !\.(php|svg|ttf|htc|ico|gif|png|jpg|jpeg|css|js|swf|html|htm|json)$ /liber.php?__URL__=%{REQUEST_URI} [QSA,NE,L]<br>
 &lt;/VirtualHost&gt;
 						</code>
 					</li>
@@ -494,14 +482,19 @@ Coming soon ...
 					<tr>
 						<td><b>liberPHP</b></td>
 						<td>/top/test</td>
-						<td><b>41</b>ms</td>
-						<td>Init Constants (2ms-7ms, APC)<br>
-							Load config file (2ms-7ms, ini -> APC)<br>
-							Dispatching (3ms-8ms)<br>
+						<td><b>27-30</b>ms</td>
+						<td>Including (1ms-4ms All-in-one)<br>
+							Dispatching (3ms-5ms)<br>
 							Load & exec Filters(1ms - 3ms)<br>
-							Session start (10ms, memcached base)<br>
+							Session start (2-5ms, memcached base)<br>
 							Use echo to write HTML code.
 							</td>
+					</tr>
+					<tr>
+						<td><b>liberPHP</b> with embeded HTML Render</td>
+						<td>/top/test</td>
+						<td><b>32-41</b>ms</td>
+						<td>Use Embeded Template engine to render HTML</td>
 					</tr>
 					<tr>
 						<td><b>liberPHP</b> with Smarty</td>

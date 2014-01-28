@@ -184,7 +184,7 @@ class Dates{
 	 * tell whether a time span drops its shadow in the given matrix
 	 * */
 	static function match($times, $start, $end, $valueField, &$matrix=null){
-		if(Arrays::isEmpty($times))
+		if(empty($times))
 			return array();
 
 		$start -= $start % 3600; 
@@ -230,7 +230,7 @@ class Dates{
 	}
 	
 	static function getAge($time){
-		if(Strings::contains($time, "-"))
+		if(str_has($time, "-"))
 			$time = strtotime($time);
 		$y = date('Y',$time);
         $age = (date("md", date("U", $time)) > date("md") ? ((date("Y")-$y)-1):(date("Y")-$y));
