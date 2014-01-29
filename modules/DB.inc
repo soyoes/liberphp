@@ -311,9 +311,9 @@ function db_make_query($table, $opts=[], $omit=[]){
 				list($k,$cmd) = explode("@",$k);
 				if(array_key_exists($k, $schema)){
 					$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
-					$cmd = strpbrk($cmd, 'begilmnqt') ? Consts::$query_filter_names[$cmd]:$cmd;
-					error_log($cmd);
-					$vStr =  Consts::$db_query_filters[$cmd]($k, $v, $data);
+					$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
+					$func = Consts::$db_query_filters[$cmd];
+					$vStr = $func($k, $v, $data);
 					if($vStr)
 						$optStr.= !empty($optStr) ? " AND ". $vStr : " WHERE ".$vStr;
 				}	

@@ -13,7 +13,7 @@ $args = array_slice($argv, 1);
 $cmd = array_shift($args);
 
 $err = "Usage : \n    liberphp create PROJECT_NAME\n".
-			"    liberphp migrate # migrate database\n";
+			"    liberphp build # compress source code to liber.php\n";
 
 if($cmd)
 try{$cmd();}catch(Exception $e){
@@ -32,20 +32,14 @@ function create(){
 	global $pwd;
 	mkdir("../".$proj);
 	exec("tar zxf miscs/files.tgz -C ../$proj/");
-	/*
-	exec("sed -i -e 's:YOUR_LIBERPHP_PATH:".$pwd.":g' ../$proj/conf/conf.ini");
-	exec("sed -i -e 's:YOUR_APP_NAME:".$proj.":g' ../$proj/conf/conf.ini");
-	*/
-	
 	$path =explode("/",$pwd);
 	$path = join("/",array_slice($path, 0, count($path)-2))."/".$proj;
 	
+	build($proj);
 	//exec("cp init.inc ../$proj/");
-	exec("cp -p liber.php ../$proj/");
-	exec("sed -i -e 's:/*__APP__NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/liber.php");
-	
-	exec("cp -p liberphp.php ../$proj/");
-	exec("sed -i -e 's:/*LIBER_DIR*/:const LIBER_DIR=\"$pwd\";:g' ../$proj/liberphp.php");
+	exec("mv liber.php ../$proj/");
+	exec("chmod +x ../$proj/liber.php");
+	//exec("sed -i -e 's:/*__APP_NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/liber.php");
 	
 	echo <<<EOF
 DONE!
@@ -54,7 +48,7 @@ Your project is created under $path
 #How to make it work
 		
 # 1) Update you Apache configuration
-# Add these rows to your 
+# Add these rows to your httpd.conf (OR httpd-vhosts.conf)
 <VirtualHost *:80>
     DocumentRoot "$path"
     Options FollowSymLinks
@@ -73,8 +67,8 @@ Your project is created under $path
 127.0.0.1		$proj.dev
 
 # 3) DB migration (Option)
-> cd $pwd
-> ./liberphp.php ../$proj
+> cd ../$proj
+> ./liber.php migrate
 
 # 4)  Restart your apache
 		
@@ -85,43 +79,10 @@ EOF;
 	
 }
 
-/**
- * migrate database of project.
- * @usage :	./liberphp.php migrate PROJECT_NAME
- * @example : ./liberphp.php migrate ../myproject
- * 
- * */
-function migrate(){
-	try{
-		include_once 'DB.inc';
-		//create database;
-		$//sql = "CREATE DATABASE IF NOT EXISTS `DBName` CHARACTER SET utf8 COLLATE utf8_general_ci;";
-		//db_query($sql);
-		//create assign user
-		$pwd=dirname(__FILE__);
-		//$sys_schemas = glob(LIBER_DIR."common/schemas/*.ini") ;
-		//$app_schemas = glob(CONF_DIR."schemas/*.ini") ;
-		//$schemas = !empty($sys_schemas)? array_merge($sys_schemas,$app_schemas):$app_schemas;
-		$schemas = glob($pwd."/conf/schemas/*.ini") ;
-		//print_r($schemas);
-		foreach ($schemas as $file){
-			echo $file."\n";
-			$parts = explode("/",$file);
-			$file = $parts[count($parts)-1];
-			$parts = explode(".", $file);
-			$schema = $parts[0];
-			echo $schema."\n";
-			db_migrate($schema);
-		}
-		echo "DONE\n";
-	}catch(Exception $e){
-		echo "FAILED\n";
-	}
-	exit;
-}
-
-function build(){
-	global $pwd;
+function build($appName=null){
+	global $pwd,$args;
+	$cliName = array_shift($args);
+	$appName = $appName | $cliName | "__APP_NAME__";
 	//$files = glob($pwd."/modules/*.inc");
 	$out = <<< EOF
 <?php
@@ -129,33 +90,60 @@ function build(){
  *	@file: liber.php
  *	@author: Soyoes 2014/01/28
  *****************************************************************************/
-const APP_NAME = '__APP__NAME__';
-const LIBER_DIR = '__LIBER__DIR__';
+const APP_NAME = '$appName';
+const LIBER_DIR = '$pwd';
 const __SLASH__ = DIRECTORY_SEPARATOR;
 define('APP_DIR', dirname(__FILE__));
-
 set_include_path(
 get_include_path(). PATH_SEPARATOR
-. APP_DIR.__SLASH__.'modules'.__SLASH__
-. PATH_SEPARATOR . __SLASH__.'filters'.__SLASH__
-. PATH_SEPARATOR . __SLASH__.'libs'.__SLASH__
-. PATH_SEPARATOR . LIBER_DIR.__SLASH__. 'modules'
-. PATH_SEPARATOR . LIBER_DIR .__SLASH__. 'modules'.__SLASH__.'utils'
+. LIBER_DIR .__SLASH__. 'modules'.__SLASH__.'utils'. PATH_SEPARATOR 
+. APP_DIR.__SLASH__.'modules'.__SLASH__ 
 );
+EOF;
+	
+	$surfix = <<< EOF2
 
 spl_autoload_register(function(\$class){
 	if(!include_once \$class.'.inc')
 		include_once \$class.'.php';
 });
-
 try{
-	REQ::dispatch();
+	\$cli_args = array_slice(\$argv, 1);
+	\$cli_cmd = array_shift(\$cli_args);
+	if(empty(\$cli_cmd))
+		REQ::dispatch();
+	else{
+		\$cli_cmd="cli_".\$cli_cmd;
+		echo \$cli_cmd."\\n";
+		if(function_exists(\$cli_cmd)){\$cli_cmd();}
+	}
 }catch(Exception \$e){
 	error_log(\$e->getMessages());
 	exit;
 }
-	
-EOF;
+function cli_migrate(){
+	try{
+		\$pwd=dirname(__FILE__);
+		\$schemas = glob(\$pwd."/conf/schemas/*.ini") ;
+		foreach (\$schemas as \$file){
+			echo \$file."\\n";
+			\$parts = explode("/",\$file);
+			\$file = \$parts[count(\$parts)-1];
+			\$parts = explode(".", \$file);
+			\$schema = \$parts[0];
+			echo \$schema."\\n";
+			db_migrate(\$schema);
+		}
+		echo "DONE\\n";
+	}catch(Exception \$e){
+		echo "FAILED\\n";
+	}
+	exit;
+}
+
+?>
+
+EOF2;
 	$files = ['Core','Lang','Session','Caches','DB','Model','Render'];
 	foreach($files as $f){
 		//echo $f."\n";
@@ -174,9 +162,9 @@ EOF;
 				$fo .= $token;
 			}
 		}
-		$fo= preg_replace(['/(require_once LIBER_DIR\.\'modules\'\.__SLASH__.*)/','/\R+/'],['',"\n"],$fo);
+		$fo= preg_replace(['/(require_once LIBER_DIR\.\'modules\'\.__SLASH__.*)/',"/(^[\r\n]*|[\r\n]+)[\s\t]*[\r\n]+/"],['',"\n"],$fo);
 		$out.=$fo;
 	}
-	$out.="\n?>";
+	$out.=$surfix;
 	file_put_contents($pwd."/liber.php", $out);
 }

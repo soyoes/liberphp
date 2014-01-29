@@ -14,13 +14,26 @@
  *****************************************************************************/
 
 class Tests {
-	public static function prepare($case){
-		$params = $case["params"];
-		//TODO
+	public static function run($controller, $action){
+		$file = APP_DIR.__SLASH__."test".__SLASH__.self::$controller.".json";
+		if (file_exists($file)){
+			$content = file_get_contents($file);
+			$content = str_replace("\n","",str_replace("\t", "", (string)$content));//Notice: ¥n ¥t will not be trimed anyway :(
+			$cases = json_decode($content, true);
+			if(isset($cases) && isset($cases[$action])){
+				$cases = $cases[$action];
+				foreach ($cases as $case){
+					self::exec($controller, $action, $case);
+				}
+			}
+		}else{
+			echo "<H1>Error:</H1><br>Test case does not exist <br> Pls add case to /test/[CONTROLLER].json<br>And specify your case by your ACTION_NAME";
+			error(400,"html");
+		}
 	}
-	
+	//FIXME
 	public static function exec($controller, $action, $case){
-		$uri = "/".APP_NAME."/".$controller."/".$action;
+		$uri = "/".$controller."/".$action;
 		$method = $case["method"];
 		$params = $case["params"];
 		$keys = array();

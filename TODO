@@ -1,5 +1,7 @@
 
-*: conf.ini -> conf.php
+# load resource to tmp file
+# Fix Tests::exec
+
 *: test Xss (patterns)
 *: test db injection (patterns)
 *: test filters

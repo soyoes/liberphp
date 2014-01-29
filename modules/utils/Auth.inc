@@ -7,75 +7,48 @@
  *	@example: 
  *****************************************************************************/
 
-define("AUTH_OK", 0);
-define("AUTH_WRONG_PASSWORD", 1);
-define("AUTH_NOT_EXIST", 2);
-define("AUTH_WRONG_PARAM", 3);
-
 class Auth extends Annotation{
 
-	
 	/**
-	 * @params 
-	 * 	uid: 	user id
-	 * 	pass: 	password
-	 * 	type:	users|admins
-	 * @return
-	 * 	0		success
-	 * 	1		failure
-	 * 	2		new user
+	 * @param $uid: 	user id
+	 * @param $pass: 	password
+	 * @param $schema:	user table name
+	 * @return : 0=success|1=failure|2=new user
 	 * */
 	
-	static public function login($email, $pass, $type="users"){
-		$model = Model::factory($type);
-		$user = $model->findFirst("email='$email' and id>0");
-		if(empty($user)){
-			return AUTH_NOT_EXIST;
-		}
-		$upass = $user["pass"];
-		if(md5($pass)!=$upass){
-			return AUTH_WRONG_PASSWORD;
-		}
-		if(empty($_SESSION)){
-			session_start();
-		}
-		$_SESSION["uid"]=$user["id"];
-		return AUTH_OK;
+	static public function login($email, $pass,$schema=null){
+		$schema = $schema | Consts::$schema_user_table;
+		$email = str_replace(' ','',$email);//injection
+		$user = db_findFirst($schema, ["fields"=>join(",",[Consts::$schema_user_id,Consts::$schema_user_email,Consts::$schema_user_pass]),
+					Consts::$schema_user_email=>$email,Consts::$schema_user_id."@>"=>0]);
+		if(empty($user))return 2;
+		$upass = $user[Consts::$schema_user_pass];
+		if(md5($pass)!=$upass){return 1;}
+		$_SESSION["uid"]=$user[$schema_user_id];
+		return 0;
 	}
 	
-	static public function generateCode($email){
-		$code = sha1($email."-".time());
-		return $code;
-	}
 	
-	static public function sendActiveMail($user, $to){
-		$master = Master::load("mails");
-		error_log("master load ");
-		$from = $master['register']['from'];
-		$subject = $master['register']['subject'];
-		$code = self::generateCode($to);
-		$url = Req::getURL("user/activate?code=".$code);
-		error_log("before render ");
-		$message = Mails::render("register",array("url"=>$url));
-		error_log("rendered ");
-		$user->set("activeCode", $code);
-		error_log("before sending ");
+	static public function sendActiveMail($from, $to, $redirectURI, $subject, $body){
+		$code = sha1($to."-".time());
+		$url = Req::getURL($redirectURI."?code=".$code);
+		$message = !empty($body)?$body:Mails::render("register_activate",["url"=>$url]);
 		Mails::send($from, $to, $subject, $message);
+		return $code;//use to set to userdata
 	}
 	
-	static public function activate($uid){
-		$model = Model::factory("user");
-		$model->exec("update users set activated=1 where id='$uid'");
+	static public function activate($uid, $schema=null){
+		$schema = $schema | Consts::$schema_user_table;
+		db_query($schema,"update $schema set ".Consts::$schema_user_activated."=1 where ".Consts::$schema_user_id."='$uid'");
 		$_SESSION["activate"] = 1;
 		$_SESSION["uid"] = $uid;
 	}
 	
 	static public function savePausedRequest(){
-		$uri = Req::getCurrentURI();
-		$uri = str_replace("showLoginPop=true", "", $uri);
-		$_SESSION["pausedURI"] = $uri;
-		$_SESSION["pausedMethod"] = strtolower(Req::getMethod());
-		$_SESSION["pausedData"] = ("POST"==Req::getMethod())? $_POST:$_GET;
+		$uri = REQ::$uri;
+		$_SESSION["pausedURI"] 		= $uri;
+		$_SESSION["pausedMethod"]	= strtolower($_SERVER["REQUEST_METHOD"]);
+		$_SESSION["pausedData"] 	= REQ::$params;
 	}
 	
 	static public function removePausedRequest(){
@@ -86,11 +59,8 @@ class Auth extends Annotation{
 	
 	static public function resumePausedRequest(){
 		if(isset($_SESSION["pausedURI"])){
-			$uri = $_SESSION["pausedURI"];
-			$method = $_SESSION["pausedMethod"];
-			$data =$_SESSION["pausedData"];
-			$url = Req::getURL($uri);
-			$res = Req::call($url, strtoupper($method), $data);
+			$url = ($_SERVER['HTTPS']?"https":"http")."://".$_SERVER['HTTPS'].$_SESSION["pausedURI"];
+			$res = call($url, $_SESSION["pausedMethod"], $_SESSION["pausedData"]);
 			echo $res;
 			self::removePausedRequest();
 			exit;

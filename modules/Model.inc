@@ -6,17 +6,19 @@
  *	@example:
  *****************************************************************************/
 
-class Model extends Observable implements Observer{
+class Model{
 	
-	private $db;
-	private $pk;		//primary key
-	private $table;		//table name
-	public 	$schema;	//array
-	private $restricts;	//array migration only
-	private $indexes;	//array migration only
+	var $db;
+	var $pk;		//primary key
+	var $table;		//table name
+	var $schema;	//array
+	var $restricts;	//array migration only
+	var $indexes;	//array migration only
+	
+	private $data=[];
+	private $changes;
 	
 	private function __construct(){}
-	
 	
 	/**
 	 * 	Get a new model instance 
@@ -33,13 +35,25 @@ class Model extends Observable implements Observer{
 	        	list($db, $schemaName) = explode('.', $schemaName);
 	        	$model->db = $db;
 	        } 
-	        $model->addObserver($model);
+	        //$model->addObserver($model);
 			if(isset($schemaName) && $db==null)
 				$model->loadSchema($schemaName);
 			return $model;
 		}catch(Exception $e){
 			throw new Exception($schemaName.'Model not found');
 		}
+	}
+	
+	public function set($keyPath, $val){
+		$change = hash_set($this->data, $keyPath, $val);
+		//$this->notify($change);
+		if(isset($this->schema[$change["key"]])){
+			$this->changes[$change['key']] = $change["val"];
+		}
+	}
+	
+	public function get($keyPath){
+		return hash_get($this->data, $keyPath);
 	}
 	
 	/**
@@ -49,13 +63,11 @@ class Model extends Observable implements Observer{
 		try{
 			$schemaDef = db_schema($schemaname);
 			$general = $schemaDef["general"];
-			error_log(json_encode($general));
 			if(isset($general["db"])) $this->db = $general["db"];
 			$this->pk	 	= $general["pk"];
 			$this->table	= $general["name"];
 			if(isset($general["index"])) $this->indexes = $general["index"];
 			$this->schema 	= $schemaDef["schema"];
-			$this->isTemp = isset($schemaDef["temp"]);
 		}catch(Exception $e){
 			throw new Exception($schemaName.' schema file not found');
 		}
@@ -117,30 +129,16 @@ class Model extends Observable implements Observer{
 	public function exists($pk){
 		return db_exists($this-table,$pk);
 	}
-	
-	public function del($optsOrPk){
-		if(!isset($this->table) || !isset($this->pk) || !isset($optsOrPk))
-			return false;
-		if(is_array($optsOrPk)){
-			$ops = db_make_query($this->table, $optsOrPk, ["order","fields"]);
-			$sql = "DELETE FROM ".$this->table." ".$ops[1];
-			return db_query($sql, $ops[2]);
-		}else{
-			$sql = "DELETE FROM ".$this->table." WHERE `".$this->pk."`=:".$this->pk;
-			return db_query($sql, [$this->pk=>$optsOrPk]);
-		}
-	}
-	
+
 	/**
 	 * insert or update by checking pk
 	 * @param boolean $useCache
 	 */
 	public function save($data=null, $returnId=false){
-		if (isset($data)){
+		if (isset($data))
 			foreach ($data as $k => $v){
 				$this->set($k, $v);
 			}
-		}
 		$id = isset($this->data[$this->pk]) ? $this->data[$this->pk] : null;
 		$isUpdate = isset($id);
 		$d = $isUpdate?$this->changes:$this->data;
@@ -148,35 +146,15 @@ class Model extends Observable implements Observer{
 		return db_save($this->table, $d, $returnId);
 	}
 	
-	public function __set($key, $value){
-		$this->$key = $value;
-	}
-	
-	public function __get($key){
-        return $this->$key;
-	}
-
-	
-	/** (non-PHPdoc)
-	 * Delegate method of Observer !!
-	 * @see Observer::update()
+	/**
+	 *delete itself from db 
 	 */
-	public function update(Observable $obj, $args){
-		if(isset($this->schema[$args["key"]])){
-			$v = $args["val"];
-			if(is_string($v) && str_has($this->schema[$args['key']], "int"))
-				$v = (int) $v;
-			$this->changes[$args['key']] = $v;
-		}
+	public function delete(){
+		if(empty($this->data)) return false;
+		$id = $this->data[$this->pk];
+		if(empty($id)) return false;
+		$sql = "delete from ".$this->table." where `".$this->pk."`=:id";
+		return db_query($sql, ["id"=>$id]);
 	}
-	
-	public function get($keyPath){
-		return hash_get($this->data, $keyPath);
-	}
-	
-	public function setDB($db){
-		$this->db= $db;
-	}
-	
 	
 }

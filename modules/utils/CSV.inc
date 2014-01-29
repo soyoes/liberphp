@@ -29,7 +29,6 @@ class CSV{
         }
         //print titles
         fputcsv($fp, array_values($titles));
-        
 		foreach ($data as &$d){
 			$row = array();
 			foreach ($titles as $col=>$label){

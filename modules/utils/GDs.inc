@@ -44,7 +44,7 @@ class GDs{
 			$ext = $parts[count($parts)-1];
 			if($ext == "jpg") $ext = "jpeg";
 			header("Content-Type: image/".$ext);
-			Files::mkdir($out);
+			fs_mkdir($out);
 			call_user_func("image".$ext, $imgs[0], $out);
 			imagedestroy($imgs[0]);
 			imagedestroy($imgs[1]);
@@ -80,7 +80,7 @@ class GDs{
 			$ext = $parts[count($parts)-1];
 			if($ext == "jpg") $ext = "jpeg";
 			header("Content-Type: image/".$ext);
-			Files::mkdir($out);
+			fs_mkdir($out);
 			call_user_func("image".$ext, $img, $out);
 			imagedestroy($img);
 		}catch (Exception $e){
@@ -194,7 +194,7 @@ class GDs{
 			$ext = $parts[count($parts)-1];
 			if($ext == "jpg") $ext = "jpeg";
 			header("Content-Type: image/".$ext);
-			Files::mkdir($out);
+			fs_mkdir($out);
 			call_user_func("image".$ext, $img, $out);
 			imagedestroy($img);
 		}catch(Exception $e){

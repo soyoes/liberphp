@@ -37,6 +37,13 @@ class Consts{
 	
 	static $schema_reg			= "regAt";
 	static $schema_upd			= "updAt";
+	//auth
+	static $schema_user_table	= "users";	
+	static $schema_user_id		= "id";		
+	static $schema_user_email	= "email";	
+	static $schema_user_pass	= "pass";	
+	static $schema_user_activated	= "activated";	
+	
 	
 	/*------------ APP Configuration End ----------------------------------*/
 	
@@ -156,7 +163,7 @@ function render_default_template(){
 }
 
 function error($code, $contentType="text", $reason=""){
-	$msg = Consts::error_codes("".$code);
+	$msg = Consts::$error_codes["".$code];
 	header("HTTP/1.1 $code $msg", FALSE);
 	switch($contentType){
 		case "json":
@@ -368,13 +375,14 @@ class REQ {
 	private static $controller = null;
 	private static $action = null;
 	private static $format = "html";
-	private static $params = [];
 	private static $client_type = "pc";
 	private static $client_template_type = "pc";
 	private static $rest_schema = null;
 	
 	//TODO remove this
 	private static $response_body = null;
+	
+	static $params = [];
 	
 	private function __construct(){}
 	
@@ -702,23 +710,8 @@ class REQ {
 			if(function_exists($action)){//normal request
 				$exec($action);
 			}else if(str_starts($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
-				$action = str_replace("test_","",$action);
-				$file = APP_DIR.__SLASH__."test".__SLASH__.self::$controller.".json";
-				if (file_exists($file)){
-					$content = file_get_contents($file);
-					$content = str_replace("\n","",str_replace("\t", "", (string)$content));//Notice: ¥n ¥t will not be trimed anyway :(
-					$cases = json_decode($content, true);
-					if(isset($cases) && isset($cases[$action])){
-						$cases = $cases[$action];
-						foreach ($cases as $case){
-							Tests::exec(self::$controller, $action, $case);
-						}
-					}
-				}else{
-					echo "<H1>Error:</H1><br>Test case does not exist <br> Pls add case to /test/[CONTROLLER].json<br>And specify your case by your ACTION_NAME";
-					error(400,"html");
-				}
-				self::$interrupted = true;
+				//self::$interrupted = true;
+				return Tests::run(self::$controller,str_replace("test_","",$action));
 			}else{//no action
 				return render_default_template();
 			}
@@ -739,8 +732,8 @@ class REQ {
 	private static function rest_process(){
 		$schema = self::$rest_schema;
 		//check filter
-		require_once APP_DIR.__SLASH__."restful".__SLASH__.$schema.".inc";
-		//if($_REQUEST["test_method"])$_REQUEST["action"] =$_REQUEST["test_method"];
+		$file = APP_DIR.__SLASH__."restful".__SLASH__.$schema.".inc";
+		if(file_exists($file)) require_once $file;
 		$pk = db_schema($schema)["general"]["pk"];
 		$params = self::$params;
 		if(isset($params[$pk]) && !isset($params["@id"]))

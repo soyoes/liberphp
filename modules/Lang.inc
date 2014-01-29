@@ -264,9 +264,8 @@ function ds_sort($arr, $sortKey=null, $sortOrder=1, $comparator=null){
 			$code = sprintf($cfmt, $sortKey, $sortKey, $sortOrder, $sortOrder,$sortOrder);
 			$cmp = create_function('$a, $b', $code);
 			usort($arr, $cmp);
-		}else{
+		}else
 			usort($arr, $comparator);
-		}
 		return $arr;
 	}else{
 		asort($arr);
@@ -280,4 +279,47 @@ function ds_sort($arr, $sortKey=null, $sortOrder=1, $comparator=null){
 function ms(){
     list($usec, $sec) = explode(" ", microtime());
     return ((int)((float)$usec*1000) + (int)$sec*1000);
+}
+
+/**
+ * Write hash to ini file
+ */
+function fs_put_ini($file, array $options){
+	$tmp = '';
+	foreach($options as $section => $values){
+		$tmp .= "[$section]\n";
+		foreach($values as $key => $val){
+			if(is_array($val)){
+				foreach($val as $k =>$v)
+					$tmp .= "{$key}[$k] = \"$v\"\n";
+			}else
+				$tmp .= "$key = \"$val\"\n";
+		}
+		$tmp .= "\n";
+	}
+	file_put_contents($file, $tmp);
+	unset($tmp);
+}
+
+
+/**
+ * @example $id = 541 , $tokenLength = 100
+ * 	path = 541%100=41/541
+ */
+function fs_archived_path ($id, $tokenLength=1000){
+	$arch =  (int)$id % (int)$tokenLength;
+	return "$arch/$id";
+}
+
+/**
+ *Mkdir and subdir automatically
+ */
+function fs_mkdir($out){
+	$folder = (str_has($out,"."))? preg_replace('/[^\/]*\.[^\/]*$/','',$out):$out;
+	if(!file_exists($folder))
+		mkdir($folder, 0775, TRUE);
+}
+
+function fs_xml2arr($xmlString){
+	return json_decode(json_encode((array)simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA)), TRUE);
 }

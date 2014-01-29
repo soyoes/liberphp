@@ -13,23 +13,6 @@ class Dates{
 	const Ymd_FORMAT = "Y-m-d";
 	static $weekDays = array("Sunday","Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday");
 	
-
-	static function ms(){
-	    list($usec, $sec) = explode(" ", microtime());
-	    return ((int)((float)$usec*1000) + (int)$sec*1000);
-	}
-	
-	
-	/**
-	 * @$date = date str, null for now
-	 * */
-	static function format($date=null, $format=self::DB_FORMAT){
-		if(isset($date)){
-			$ms = is_string($date) ? strtotime($date) : $date; 
-		}else 
-			$ms = self::ms();
-		return date($format, $ms/1000);
-	}
 	
 	//example Sep => 09, June => 06
 	static function textual2NumericMonth ($mon){
@@ -75,42 +58,13 @@ class Dates{
 	}
 	
 	static function timezoneDate($date, $timezone, $targetZone=0){
-		/*
-		if(!isset($targetZone)){
-			$targetZone = date("O");
-			$targetZone = (int)substr($targetZone, 1, 2);
-		}
-		$timezone -= $targetZone;
-		*/
 		if($timezone==$targetZone)
 			return $date;
 		$diff = $targetZone-$timezone;
 		$date = date(self::DB_FORMAT, strtotime("$diff hour", strtotime($date)));
 		return $date;
 	}
-	
-	/**
-	 *@return set start_date end_date to $_REQUEST
-	 */
-	static private function setDaily(){
-		//TODO timezone
-		$date =isset($_REQUEST["date"]) ? $_REQUEST["date"]:Dates::format();
-		$parts = explode(" ", $date);
-		$_REQUEST["start_date"] = $parts[0]." 00:00:00";
-		$_REQUEST["end_date"] = $parts[0]." 23:59:59";
-	}
 
-	/**
-	 *@return set start_date end_date to $_REQUEST
-	 */
-	static private function setMonthly(){
-		//TODO timezone
-		$date =isset($_REQUEST["date"]) ? $_REQUEST["date"]:Dates::format();
-		$time = strtotime($_REQUEST["date"]);
-		$_REQUEST["start_date"] = Dates::firstOfMonth();
-		$_REQUEST["end_date"] = Dates::lastOfMonth();
-	}
-	
 	static function comparator($sortKey, $sortOrder){
 		$cfmt = '$av=$a["%s"];if(!isset($av))$av=0;$bv=$b["%s"];if(!isset($bv))$bv=0;if($av==$bv){return 0;} return(strtotime($av)>strtotime($bv))?-1*%d:1*%d;';
 		$code = sprintf($cfmt, $sortKey, $sortKey, $sortOrder, $sortOrder,$sortOrder);
@@ -124,12 +78,6 @@ class Dates{
 		
 		$startDay = strtotime("last monday",strtotime($_1st));
 		$endDay = strtotime("next sunday",strtotime($_31th));
-		/*
-		$days = array();
-		for($d=$startDay; $d<=$endDay; $d+=86400){
-			$days[] = date($format,$d);
-		}
-		*/
 		if($format=="time")
 			return array($startDay,$endDay);
 		else
