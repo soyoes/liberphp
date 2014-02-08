@@ -5,7 +5,6 @@
 *: test Xss (patterns)
 *: test db injection (patterns)
 *: test filters
-*: add query commands to arrays
 *: oauth2 server/client
 
 ----

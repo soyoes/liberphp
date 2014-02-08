@@ -31,9 +31,15 @@ class Consts{
 	static $csrf_check			= false;
 	static $csrf_lifetime		= 300;
 	
+	static $test_mode_enable 	= true;
+	
 	static $session_enable		= true;
+	static $session_lifetime	= 86400;
+	
 	
 	static $filters				= [];
+	
+	static $oauth_clients 		= [];
 	
 	static $schema_reg			= "regAt";
 	static $schema_upd			= "updAt";
@@ -43,6 +49,8 @@ class Consts{
 	static $schema_user_email	= "email";	
 	static $schema_user_pass	= "pass";	
 	static $schema_user_activated	= "activated";	
+	
+	
 	
 	
 	/*------------ APP Configuration End ----------------------------------*/
@@ -509,15 +517,16 @@ class REQ {
 		$host =$_SERVER["SERVER_NAME"];
 		$uri = htmlEntities($_SERVER["REQUEST_URI"], ENT_QUOTES|ENT_HTML401);
 		$uri = preg_replace(['/\sHTTP.*/','/(\/)+/','/\/$/','/^[a-zA-Z0-9]/'], ['',"/","","/$1"], $uri);
-		//error_log($_SERVER["REQUEST_URI"]." host=$host url=$uri");
 		$parts = parse_url("http://".$host.$uri);
+		$params = [];
 		$uri = $parts["path"];
 		$fmts = ['json','bson','text','html','csv'];
-		//$params = ["@format"=>in_array($_REQUEST["@format"], $fmts)?$_REQUEST["@format"]:"html"];
-		$params = [];
-		
 		if(isset($parts["query"]))
 			parse_str($parts["query"],$params);
+		if(($host=="localhost"||$host=="127.0.0.1") && str_has($uri,"liber.php") && isset($params["__URL__"]) ){
+			$uri = $params["__URL__"];
+			unset($params["__URL__"]);
+		}
 		list($uri, $ext) = explode(".", $uri);
 		$specifiedFmt = in_array($ext,$fmts);
 		if($ext==1||$ext==""||$specifiedFmt){//action

@@ -1,6 +1,14 @@
 <?php
 /**
- * TODO solve <script> <style>
+ *	@file: Render.inc
+*	@author: Soyoes 2014/01/10
+*	@uses: html template render class
+*	@example:
+*****************************************************************************/
+
+
+/**
+ * TODO solve <script> <style> without {ignore}
  * TODO text locale
  * TODO CSS
  * 
@@ -8,7 +16,6 @@
  * OK{ $a : $b }
  * 
  */
-
 class Render {
 	static $path;
 	private static $output_path;
