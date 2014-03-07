@@ -11,24 +11,250 @@ if (!apc_load_constants("DB_FMTS")){
 	'FORMAT_CREATE_DB' 			 => "CREATE TABLE `%s`.`%s` ( %s PRIMARY KEY (`%s`)) ENGINE=InnoDB %s DEFAULT CHARSET=utf8;",
 	'FORMAT_CREATE_DB_MULTI_KEY' => "CREATE TABLE `%s`.`%s` ( %s CONSTRAINT %s PRIMARY KEY (%s)) ENGINE=InnoDB %s DEFAULT CHARSET=utf8;",
 	'FORMAT_INSERT_DB' 			 => "INSERT %s INTO `%s` (%s) VALUES(%s);",
-	'FORMAT_UPDATE_DB'			 => "UPDATE `%s` SET %s WHERE `%s`=%s;"
+	'FORMAT_UPDATE_DB'			 => "UPDATE `%s` SET %s WHERE `%s`=%s;",
 	]);
 }
 
 /**
+ * For HTTP request only
  * get connection handler of PDO
  * @param opts:use conf.ini as default
  * @return PDO object.
  * */
-function db_conn($opts=null){
+function db_conn($opts=null, $pdoOpts=null){
 	$db = REQ::getDB();
 	if(!isset($db)){
-		$conn_str = Consts::$db_engine.":host=".Consts::$db_host.";port=".Consts::$db_port.";dbname=".Consts::$db_name.";charset=utf8";
-		$db = new PDO($conn_str,Consts::$db_user,Consts::$db_pass,
-				[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+		$db = pdo_conn($opts,$pdoOpts);
 		REQ::setDB($db);
 	}
 	return $db;
+}
+
+/**
+ *create pdo connection, return pdo instance.
+ **/
+function pdo_conn($opts=null, $pdoOpts=null){
+	$opts = $opts ? $opts: [
+		'engine'=>Consts::$db_engine,
+		'host'	=>Consts::$db_host,
+		'port'	=>Consts::$db_port,
+		'db'	=>Consts::$db_name,
+		'user'	=>Consts::$db_user,
+		'pass'	=>Consts::$db_pass,
+	];
+	$conn_str = $opts["engine"].":host=".$opts["host"].";port=".$opts["port"].";dbname=".$opts["db"].";charset=utf8";
+	$pdoOpts = $pdoOpts ? $pdoOpts :[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
+	return new PDO($conn_str,$opts["user"],$opts["pass"],$pdoOpts);
+}
+
+/**
+ *query with pdo instance 
+ **/
+function pdo_query($pdo, $sql, $datas=[]) {
+	if(!$pdo || empty($sql))return false;
+	$isQeury = str_starts(strtolower(trim($sql)), "select");
+	$statement = $pdo->prepare($sql);
+	if ($statement->execute ($datas) == FALSE) {
+		return false;
+	}
+	return $isQeury? $statement->fetchAll(PDO::FETCH_ASSOC):true;
+}
+
+function pdo_count($pdo, $sql, $datas=[], $col=0){
+	if(!$pdo || empty($sql))return false;
+	$statement = $pdo->prepare($sql);
+	if ($statement->execute ($datas) == FALSE) {
+		return false;
+	}
+	$res =  $statement->fetchColumn();
+	return intval($res);
+}
+
+function pdo_import($pdo, $table, $datas, $regName="regAt", $updName="updAt"){
+	if(!isset($pdo) ||!isset($table) || count($datas)==0)
+		return false;
+	$schema = db_schema($table)["schema"];
+	$cols = [];
+	foreach ($datas as $d){
+		$cols = array_unique(array_merge($cols,array_keys($d)));
+	}
+	$cls = $cols;$cols=[];$schema_cols =array_keys($schema);
+	foreach($cls as $c){
+		if(in_array($c, $schema_cols)){
+			$cols[]=$c;
+		}
+	}
+	$hasRegStamp = !empty($regName) && array_key_exists($regName,$schema);
+	if($hasRegStamp && !in_array($regName, $cols)) $cols[] = $regName;
+	$hasTimestamp = !empty($updName) && array_key_exists($updName,$schema);
+	if($hasTimestamp && !in_array($updName, $cols)) $cols[] = $updName;
+	$sql = "INSERT IGNORE INTO ".$table." (`".join("`,`", $cols)."`) VALUES ";
+	$time = time();
+	foreach ($datas as $d){
+		if($hasRegStamp){$d[$regName]=$time;}
+		if($hasTimestamp){$d[$updName]=$time;}
+		$vals = [];
+		foreach ($cols as $c){
+			$v = array_key_exists($c, $d) ? $d[$c] : null;
+			$vals[]=db_v($v, $schema[$c]);
+		}
+		$sql.=" (".join(",", $vals)."), ";
+	}
+	$sql = substr($sql, 0, strlen($sql)-2);
+	$pdo->setAttribute(PDO::ATTR_TIMEOUT, 1000);
+	try{
+		pdo_query($pdo, $sql);
+		$pdo->setAttribute(PDO::ATTR_TIMEOUT, 10);
+	}catch(Exception $e){
+		$pdo->setAttribute(PDO::ATTR_TIMEOUT, 10);
+		$file = '/tmp/'.$table.'_imp.sql';
+		file_put_contents($file,$sql);
+		return false;
+	}
+}
+function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
+	if(!isset($pdo) || !isset($table) || !is_hash($data) || empty($data))return false;
+	$regName = Consts::$schema_reg;
+	$updName = Consts::$schema_upd;
+	$schema_def = db_schema($table);
+	$schema = $schema_def["schema"];
+	$pk = $schema_def["general"]["pk"];
+	$pks=[];$qo=null;$isUpdate=false;
+	if (str_has($pk, "|")||str_has($pk, "+")||str_has($pk, ",")){
+		$pks = preg_split("/[\|\+,]/", $pk);
+		$qo = [];
+		foreach ($pks as $p){
+			if(empty($data[$p])){
+				return false;
+			}else 
+				$qo[$p] = $data[$p];
+		}
+		try{
+			$ext = pdo_find($pdo, $table, $qo);
+		}catch(Exception $e){
+			echo $e->getMessage()."\n";
+		}
+		$isUpdate = !empty($ext);
+	} else{
+		$id = isset($data[$pk]) ? $data[$pk] : null;
+		$isUpdate = isset($id) && pdo_exists($pdo, $table, $id);
+	}
+	$sql = "";
+	if(array_key_exists($updName,$schema))
+		$data[$updName] = ms();
+	$qdatas = [];
+	if ($isUpdate){
+		if($id)cache_del($table."_".$id);
+		foreach ($data as $col => $val){
+			if(str_ends($col,"+")) {
+				$opr = substr($col,-1);
+				$col = substr($col,0,-1); 
+			}
+			if($col==$pk || in_array($col, $pks) || !isset($schema[$col]))continue;
+			if(!empty($colStmt))$colStmt .= ",";
+			$colStmt .= $opr? "`$col`=`$col` + :$col " : "`$col`=:$col ";
+			$qdatas[$col]= $val;//db_v($val, $schema[$col], $bson);
+		}
+		if(empty($pks)){
+			$sql = sprintf(FORMAT_UPDATE_DB, $table, $colStmt, $pk, db_v($id));
+		}else{
+			list($colStr,$optStr,$qrdatas) = db_make_query($table, $qo);
+			foreach ($qrdatas as $qk=>$qv){
+				$qdatas[$qk]= $qv;
+			}
+			$sql ="update `$table` set $colStmt $optStr"; 
+		}
+		//echo $sql."\n";
+	}else{								
+		if(array_key_exists($regName,$schema) && !isset($data[$regName]))
+			$data[$regName] = ms();
+		foreach ($data as $col => $val){
+			if(str_ends($col,"+")) {
+				$opr = substr($col,-1);
+				$col = substr($col,0,-1);
+			}
+			if(!isset($schema[$col]))continue;
+			if(!empty($colStmt))$colStmt .= ",";
+			if(!empty($valStmt))$valStmt .= ",";
+			$colStmt .= "`$col`";
+			$valStmt .= $opr? "`$col` + :$col " : ":$col";
+			$qdatas[$col]= $val;//db_v($val, $schema[$col], $bson);
+		}
+		$sql = sprintf(FORMAT_INSERT_DB, $ignore, $table, $colStmt, $valStmt);
+	}
+	try {
+		if($returnId==true && !$isUpdate) {
+			$res = pdo_trans($pdo,[$sql, "SELECT LAST_INSERT_ID() as 'last_id'"],[$qdatas]);
+			$data["id"] = $res[0]["last_id"];
+		}else{
+			pdo_query($pdo, $sql,$qdatas);
+		}
+		return $data;
+	} catch (Exception $e) {
+		error_log("ERROR ".$e->getMessage());
+		error_log($sql);
+		return false;
+	}
+}
+function pdo_find($pdo,$table, $opts=[], $withCount=false){
+	if(!$pdo || !$table)return false;
+	list($colStr, $optStr,$datas) = db_make_query($table, $opts);
+	$sql = "SELECT ".$colStr." FROM ".$table.$optStr;
+	$res = pdo_query($pdo, $sql, $datas, $opts["useCache"]);
+	if($withCount){
+		$sql = "SELECT count(*) FROM ".$table.preg_replace("/ORDER BY\s*(.*)\s*([LIMIT .*]*)/", '${3}',$optStr);
+		$cnt = pdo_count($pdo,$sql, $datas, $opts["useCache"]);
+		return ["count"=>$cnt,"result"=>$res];
+	}else{
+		return $res;
+	}
+}
+function pdo_exists($pdo, $table, $id){
+	if(!isset($pdo) ||!isset($table) || !isset($id))
+		return false;
+	$pk = db_schema($table)["general"]["pk"];
+	$entity =pdo_count($pdo, "select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
+	return $entity>0;
+}
+function pdo_trans($pdo,$querys,$datas){
+	if(!isset($pdo)||!isset($querys))
+		return false;
+	$mod = $pdo->getAttribute(PDO::ATTR_ERRMODE);
+	$pdo->setAttribute( PDO::ATTR_AUTOCOMMIT, 0 );
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$pdo->beginTransaction();
+	$cnt = 0;
+	$res = true;
+	try{
+		if(is_callable($querys)){
+			$cnt = $querys($pdo);
+		}else if(is_array($querys)){
+			$i=0;
+			foreach($querys as $q){
+				$i++;
+				if($q==="@rollback"){
+					$pdo->rollBack();$cnt--;
+				}else{
+					$statement = $pdo->prepare($q);
+					$data = isset($datas[$i-1])?$datas[$i-1]:[];
+					if ($statement->execute($data) == false) {
+						continue;
+					}
+					if(str_starts(strtolower($q), "select")){
+						$res = $statement->fetchAll(PDO::FETCH_ASSOC);					}
+						$cnt++;
+				}
+			}
+		}
+	}catch(Exception $e){
+		error_log("DB Transaction ERR:",$e->getMessage());
+		$pdo->rollBack();
+	}
+	if($cnt>0)
+		$pdo->commit();
+	$pdo->setAttribute( PDO::ATTR_AUTOCOMMIT, 1 );
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, $mod);
+	return $res;
 }
 
 /**
@@ -46,7 +272,7 @@ function db_conn($opts=null){
  * @example : 
  * 	db_query("select * from tasks where `id`=?",[1]);
  */
-function db_query($sql, $datas=[], $useCache = false, $PDOOpt = PDO::FETCH_ASSOC) {
+function db_query($sql, $datas=[], $useCache = false) {
 	try {
 		$key = $sql;
 		$isQeury = str_starts(strtolower($sql), "select");
@@ -57,12 +283,7 @@ function db_query($sql, $datas=[], $useCache = false, $PDOOpt = PDO::FETCH_ASSOC
 				return $value;
 		}
 		$db = db_conn();
-		$statement = $db->prepare($sql);
-		//var_dump($statement);
-		if ($statement->execute ($datas) == FALSE) {
-			return null;
-		}
-		$res =$isQeury? $statement->fetchAll($PDOOpt):true;
+		$res = pdo_query($db, $sql, $datas);
 		if ($useCache && $isQeury && $res != null) {
 			cache_set($key, $res);
 		}
@@ -85,13 +306,11 @@ function db_count($sql=null, $datas=[], $useCache=false){
 				return $value;
 		}
 		$db = db_conn();
-		$sth = $db->prepare($sql);
-		$sth->execute($datas);
-		$res = $sth->fetchColumn();
+		$res = pdo_count($db, $sql, $datas);
 		if($useCache && $res){
 			cache_set($sql, $res);
 		}
-		return intval($res);
+		return $res;
 	} catch (PDOException $e) {
 		error_log($sql);
 		return -1;
@@ -142,17 +361,7 @@ function db_attr($attr, $val){
  * 
  */
 function db_find($table, $opts=[], $withCount=false){
-	list($colStr, $optStr,$datas) = db_make_query($table, $opts);
-	$sql = "SELECT ".$colStr." FROM ".$table.$optStr;
-	error_log("SEARCH: ".$sql);
-	$res = db_query($sql, $datas, $opts["useCache"]);
-	if($withCount){
-		$sql = "SELECT count(*) FROM ".$table.preg_replace("/ORDER BY\s*(.*)\s*([LIMIT .*]*)/", '${3}',$optStr);
-		$cnt = db_count($sql, $datas, $opts["useCache"]);
-		return ["count"=>$cnt,"result"=>$res];
-	}else{
-		return $res;
-	}
+	return pdo_find(db_conn(), $table, $opts, $withCount);
 }
 /**
  * search with data options, returns 1st matched record.
@@ -191,47 +400,7 @@ function db_find1st($table, $opts=[]){
  * 
  * */
 function db_import($table, $datas){
-	if(!isset($table) || count($datas)==0)
-		return false;
-	
-	$schema = db_schema($table)["schema"];
-	
-	$cols = [];
-	foreach ($datas as $d){
-		$cols = array_unique(array_merge($cols,array_keys($d)));
-	}
-	
-	$regName = Consts::$schema_reg;
-	$updName = Consts::$schema_upd;
-	
-	$hasRegStamp = array_key_exists($regName,$schema);
-	if($hasRegStamp && !in_array($regName, $cols)) $cols[] = $regName;
-
-	$hasTimestamp = array_key_exists($updName,$schema);
-	if($hasTimestamp && !in_array($updName, $cols)) $cols[] = $updName;
-
-	$sql = "INSERT IGNORE INTO ".$table." (`".join("`,`", $cols)."`) VALUES ";
-	$time = time();
-
-	foreach ($datas as $d){
-		if($hasRegStamp){$d[$regName]=$time;}
-		if($hasTimestamp){$d[$updName]=$time;}
-		$vals = [];
-		foreach ($cols as $c){
-			$v = array_key_exists($c, $d) ? $d[$c] : null;
-			$vals[]=db_v($v, $schema[$c]);
-		}
-		$sql.=" (".join(",", $vals)."), ";
-	}
-	$sql = substr($sql, 0, strlen($sql)-2);
-	db_attr(PDO::ATTR_TIMEOUT,1000);
-	if(isset($sql_dump_path)){
-		$handle = fopen($sql_dump_path, "w+");
-		fwrite($handle, $sql);
-	}else{
-		//error_log("DB::import ".$sql);
-		db_query($sql);
-	}
+	return pdo_import(db_conn(), $table, $datas, Consts::$schema_reg, Consts::$schema_upd);
 }
 
 /**
@@ -291,8 +460,8 @@ function db_make_query($table, $opts=[], $omit=[]){
 		//Regexp with ignorecase option only mysql or regexp
 	];
 	if(!isset($table))return false;
-	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :join(",", $opts['fields']))
-		 : (isset($opts['fields'])? $opts['fields']:'*');
+	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :"`".join("`,`", $opts['fields'])."`")
+		 : (isset($opts['fields'])? '`'.preg_replace('/[`\s]*,[`\s]*/',"`,`",$opts['fields']).'`':'*');
 	$optStr = "";
 	$schemaDef = db_schema($table);
 	$schema = $schemaDef["schema"];
@@ -303,20 +472,23 @@ function db_make_query($table, $opts=[], $omit=[]){
 		foreach ($opts as $k => $v){
 			if(in_array($k,$omit))continue;
 			if($k=="@id")$k=$pk;
-			if(is_callable($v)){ /*$k = key=value, $v = function($k,$v){return "$k > '$v'";} */
+			/*
+			if(is_callable($v)){
+				echo "2:$k $v\n";
 				list($key,$value)=explode("=", $k);
 				$val = $v($key, $value);
 				$optStr.= !empty($optStr) ? " AND $val ": " WHERE $val ";
 			}else{
-				list($k,$cmd) = explode("@",$k);
-				if(array_key_exists($k, $schema)){
-					$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
-					$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
-					$func = Consts::$db_query_filters[$cmd];
-					$vStr = $func($k, $v, $data);
-					if($vStr)
-						$optStr.= !empty($optStr) ? " AND ". $vStr : " WHERE ".$vStr;
-				}	
+			*/
+			list($k,$cmd) = explode("@",$k);
+				
+			if(array_key_exists($k, $schema)){
+				$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
+				$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
+				$func = Consts::$db_query_filters[$cmd];
+				$vStr = $func($k, $v, $data);
+				if($vStr)
+					$optStr.= !empty($optStr) ? " AND ". $vStr : " WHERE ".$vStr;
 			}
 		}
 		if(!in_array("order",$omit) && !empty($opts["order"]))
@@ -330,18 +502,14 @@ function db_make_query($table, $opts=[], $omit=[]){
 }
 
 function db_exists($table, $id){
-	if(!isset($table) || !isset($id))
-		return false;
-	$pk = db_schema($table)["general"]["pk"];
-	$entity = db_count("select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
-	return $entity>0;
+	return pdo_exists(db_conn(), $table, $id);
 }
 
 /**
  * @param $table:tablename
  * @param $opts:query options
  *
- * @example : db_update("tasks",[groupId=>3]); //delete from ... where groupId=3
+ * @example : db_delete("tasks",[groupId=>3]); //delete from ... where groupId=3
  * */
 function db_delete($table, $opts){
 	if(empty($opts))return false;
@@ -385,15 +553,29 @@ function db_migrate($table){
 		}
 		$incStmt = "";
 		$sql = "";
-		if (str_has($pk, "|")){
-			$parts = explode("|", $pk);
-			$pkName = $parts[0];
-			$keys = $parts[1];
+		if (str_has($pk, "|")||str_has($pk, "+")||str_has($pk, ",")){
+			$parts = preg_split("/[\|\+,]/", $pk);
+			$pkName = join('_',$parts);
+			$keys = '`'.join('`,`',$parts)."`";
 			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, $dbn, $table, $colStmt, $pkName, $keys, $incStmt);
 		}else{
 			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $table, $colStmt, $pk, $incStmt);
 		}
 		$res = db_query($sql);
+		
+		//index
+		$index = $schema_def["index"];
+		if(!empty($index)){
+			foreach ($index as $cols => $desc){
+				$name = "index_".preg_replace('/[\+\.\|]/', '_',$cols);
+				$cols = preg_replace('/[\+\.\|]/', '`,`',$cols);
+				$desc = $desc=="unique"?"UNIQUE ":" ";
+				$sql = "CREATE ${desc}INDEX index_$name ON `$table` (`$cols`)";
+				echo $sql."\n";
+				db_query($sql);
+			}
+		}
+		
 	}
 	echo "Created ".$table."</br>\n";
 }
@@ -415,56 +597,7 @@ function db_migrate($table){
  * 
  * */
 function db_save($table, $data, $returnId=false, $bson=false){
-	if(!isset($table) || !is_hash($data) || empty($data))return false;
-	$regName = Consts::$schema_reg;
-	$updName = Consts::$schema_upd;
-	
-	$schema_def = db_schema($table);
-	$schema = $schema_def["schema"];
-	$pk = $schema_def["general"]["pk"];
-	$id = isset($data[$pk]) ? $data[$pk] : null;
-	if(array_key_exists($updName,$schema))
-		$data[$updName] = Dates::format();
-	$sql = "";
-	$isUpdate = isset($id) && db_exists($table, $id);
-	$qdatas = [];
-	if ($isUpdate){	//update
-		cache_del($table."_".$id);
-		foreach ($data as $col => $val){
-			if($col==$pk || !isset($schema[$col]))continue;
-			if(!empty($colStmt))$colStmt .= ",";
-			$colStmt .= "`$col`=:$col ";
-			$qdatas[$col]=db_v($val, $schema[$col], $bson);
-		}
-		$sql = sprintf(FORMAT_UPDATE_DB, $table, $colStmt, $pk, db_v($id));
-	}else{						//insert
-		if(array_key_exists($regName,$schema) && !isset($data[$regName]))
-			$data[$regName] = Dates::format();
-		foreach ($data as $col => $val){
-			if(!isset($schema[$col]))continue;
-			if(!empty($colStmt))$colStmt .= ",";
-			if(!empty($valStmt))$valStmt .= ",";
-			$colStmt .= "`$col`";
-			$valStmt .=":$col";
-			$qdatas[$col]=db_v($val, $schema[$col], $bson);
-		}
-		//$ignore = $ignoreErrors ? "IGNORE" : "";
-		$sql = sprintf(FORMAT_INSERT_DB, $ignore, $table, $colStmt, $valStmt);
-	}
-	try {
-		if($returnId==true && !$isUpdate) {
-			echo ($sql."\n");
-			var_dump($qdatas);
-			$res = db_trans([$sql, "SELECT LAST_INSERT_ID() as 'last_id'"],[$qdatas]);
-			$data["id"] = $res[0]["last_id"];
-		}else{
-			db_query($sql,$qdatas);
-		}
-		return $data;
-	} catch (PDOException $e) {
-		error_log($sql);
-		return false;
-	}
+	return pdo_save(db_conn(), $table, $data, $returnId);
 }
 
 /**
@@ -499,48 +632,7 @@ function db_schema($schemaName){
 		echo json_encode($rs);
  * */
 function db_trans($querys,$datas){
-	if(!isset($querys))
-		return false;
-	$db = db_conn();
-	$mod = $db->getAttribute(PDO::ATTR_ERRMODE);
-	$db->setAttribute( PDO::ATTR_AUTOCOMMIT, 0 );
-	$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	$db->beginTransaction();
-	$cnt = 0;
-	$res = true;
-	try{
-		if(is_callable($querys)){
-			$cnt = $querys($db);
-		}else if(is_array($querys)){
-			$i=0;
-			foreach($querys as $q){
-				$i++;
-				if($q==="@rollback"){
-					$db->rollBack();$cnt--;
-				}else{
-					$statement = $db->prepare($q);
-					$data = isset($datas[$i-1])?$datas[$i-1]:[];
-					if ($statement->execute($data) == false) {
-						continue;
-					}
-					if(str_starts(strtolower($q), "select")){
-						$res = $statement->fetchAll(PDO::FETCH_ASSOC);//FIXME PDO option
-					}
-					$cnt++;
-				}
-			}
-		}	
-	}catch(Exception $e){
-		error_log("DB Transaction ERR:",$e->getMessage());
-		//while(0 < $cnt--){
-		$db->rollBack();
-		//}
-	}
-	if($cnt>0)
-		$db->commit();
-	$db->setAttribute( PDO::ATTR_AUTOCOMMIT, 1 );
-	$db->setAttribute(PDO::ATTR_ERRMODE, $mod);
-	return $res;
+	return pdo_trans(db_conn(), $querys,$datas);
 }
 function bson_enc($arr){
 	$str = json_encode($arr);

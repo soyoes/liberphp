@@ -110,15 +110,24 @@ spl_autoload_register(function(\$class){
 try{
 	\$cli_args = array_slice(\$argv, 1);
 	\$cli_cmd = array_shift(\$cli_args);
-	if(empty(\$cli_cmd))
-		REQ::dispatch();
-	else{
+	if(php_sapi_name() == 'cli' || PHP_SAPI == 'cli'){
 		\$cli_cmd="cli_".\$cli_cmd;
-		echo \$cli_cmd."\\n";
 		if(function_exists(\$cli_cmd)){\$cli_cmd();}
+	}else{
+		REQ::dispatch();
 	}
 }catch(Exception \$e){
-	error_log(\$e->getMessages());
+	error_log(\$e->getMessage());
+	exit;
+}
+function cli_script(){
+	global \$cli_args;
+	\$f = array_shift(\$cli_args);
+	if(!empty(\$f)){
+		\$pwd=dirname(__FILE__);
+		\$f = \$pwd."/scripts/\$f.php";
+		include \$f;
+	}
 	exit;
 }
 function cli_migrate(){
@@ -139,6 +148,18 @@ function cli_migrate(){
 		echo "FAILED\\n";
 	}
 	exit;
+}
+function llog(\$label, \$value, \$toScreen=false){
+	\$value = is_array(\$value)?json_encode(\$value,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT):\$value;
+	if(\$toScreen){
+		\$label = "<b>".\$label."</b>";
+		\$value = "<pre>".\$value."</pre>";
+	}
+	if(REQ_MODE=="CLI"||\$toScreen){
+		echo \$label.":".\$value.(\$toScreen?"<br>":"\n");
+	}else{
+		error_log(\$label.":".\$value."\n");
+	}
 }
 
 ?>
@@ -165,6 +186,7 @@ EOF2;
 		$fo= preg_replace(['/(require_once LIBER_DIR\.\'modules\'\.__SLASH__.*)/',"/(^[\r\n]*|[\r\n]+)[\s\t]*[\r\n]+/"],['',"\n"],$fo);
 		$out.=$fo;
 	}
+	$out = str_replace('error_log','llog',$out);
 	$out.=$surfix;
 	file_put_contents($pwd."/liber.php", $out);
 }
