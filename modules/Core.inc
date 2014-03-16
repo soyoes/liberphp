@@ -461,8 +461,10 @@ class REQ {
 		if(self::$dispatched===true)return;
 		self::parse_uri();
 		try{
-			$filters = $_REQUEST["filters"];
-			$size = count($filters);
+			$filters = Consts::$filters;
+			$filterNames = array_keys($filters);
+			//TODO check filter pattern
+			$size = count($filterNames);
 			$filterCls = [];
 			if(Consts::$session_enable)
 				Session::start();
@@ -485,13 +487,14 @@ class REQ {
 					}
 				}else if($size>0){//Exec filters
 					$nextIdx = $token < 0 ? $size + $token : $size - $token ;
-					$filterName = $filters[$nextIdx];
+					$filterName = $filterNames[$nextIdx];
 					if(!empty($filterName)){
-						$filter = array_key_exists($filterName, $filterCls)? $filterCls[$filterName]: Filter::factory($filterName);
-						if(!array_key_exists($filterName, $filterCls)){
+						$existsFilter = array_key_exists($filterName, $filterCls);
+						$filter = $existsFilter? $filterCls[$filterName]: Filter::factory($filterName);
+						if(!$existsFilter){
 							$filterCls[$filterName] = $filter;
 						}
-						($token<0) ? $filter->before() : $filter->after();
+						($token<0) ? $filter->before(REQ::$params) : $filter->after(REQ::$params);
 					}
 				}
 			}
@@ -660,6 +663,13 @@ class REQ {
 			$controllers = array_unique(array_map(function($e){
 				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\.inc$/',"/^\//"],["","",""], $e));
 			},array_slice($res,0)));
+			/*
+			$filterdir = APP_DIR.__SLASH__."filters";
+			exec("find $filterdir",$res);
+			$filters = array_unique(array_map(function($e){
+				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."filters")."/",'/\.inc$/',"/^\//"],["","",""], $e));
+			},array_slice($res,0)));
+			*/
 			$schemadir = APP_DIR.__SLASH__."conf".__SLASH__."schemas";
 			exec("find $schemadir",$res2);
 			$schemas = array_unique(array_map(function($e){
@@ -672,6 +682,7 @@ class REQ {
 			},$res3));
 			$view_types = glob($vdir.__SLASH__."*",GLOB_ONLYDIR);
 			return ["namespaces" => ds_remove($namespaces, ""), "controllers" => ds_remove($controllers, ""),
+			//"filters" => ds_remove($filters, ""),
 			"schemas"=>ds_remove($schemas, ""),"views"=>ds_remove($views, ["","pc","sm","bot","ibot","pad","mail"]),
 			"view_types"=>array_map(function($e){
 				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."views".__SLASH__)."/","/^\//"],["",""], $e));

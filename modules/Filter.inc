@@ -1,45 +1,17 @@
 <?php
 
 abstract class Filter{
-
-	/*
-	 * request type
-	 * common, admin, plugin
-	 */ 
-	var $type;
-	
-	var $req;
-	
-	public static $FILTERS;
-	
-	public static function init(){
-		//$CONF
-		Filter::$FILTERS = FILTERS_COMMON;//FIXME
-	}
-	
-	public function __construct(){
-		if (!isset(Filter::$FILTERS)){
-			Filter::init();
-		}
-		$this->req = get_request();
-	}
-	
- 	public function doFilter(){
-		Debugs::dump("Filter.filter");
-	}
-	abstract public function before();
-	abstract public function after();
-	
-	
+	private function __construct(){}
+	abstract public function before($params);
+	abstract public function after($params);
 	public static function factory($type){
-		if (include 'filters'.__SLASH__. ucfirst($type) . 'Filter.inc') {
+		if (include APP_DIR.__SLASH__.'filters'.__SLASH__. $type. '.inc') {
             $classname = strtoupper($type[0]).substr($type,1).'Filter';
             return new $classname;
         } else {
             throw new Exception('filter not found');
         }
 	}
-	
-} 
+}
 
 ?>
