@@ -94,6 +94,7 @@ const APP_NAME = '$appName';
 const LIBER_DIR = '$pwd';
 const __SLASH__ = DIRECTORY_SEPARATOR;
 define('APP_DIR', dirname(__FILE__));
+define('IMAGE_DIR', APP_DIR . __SLASH__ . "webroot" . __SLASH__ . "images" . __SLASH__);
 set_include_path(
 get_include_path(). PATH_SEPARATOR
 . LIBER_DIR .__SLASH__. 'modules'.__SLASH__.'utils'. PATH_SEPARATOR 
