@@ -44,8 +44,10 @@ class Render {
 	 */
 	function render($file,$data=[],$layout=null){
 		$template = isset($layout)? $layout : $this->layout;
-		$s = cache_get('template-'.$template, function($f){
-			return file_get_contents(Render::$path.str_replace('template-','',$f));
+		$key = 'template-'. REQ::getClientTemplateType() . "-" .$template;
+		$s = cache_get($key, function($f){
+			$key_prefix = 'template-'. REQ::getClientTemplateType() . "-";
+			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
 		},false);
 		list($before, $after) = explode('__CONTENTS__', $s);
 		echo $before;
