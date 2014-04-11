@@ -474,13 +474,13 @@ Coming soon ...
 						<td>test.php is under DocumentRoot/mypath<br>No session</td>
 					</tr>
 					<tr>
-						<td>php file under liberPHP</td>
+						<td>php file under liberPHP2</td>
 						<td>/test.php</td>
 						<td>14ms</td>
 						<td>test.php is under DocumentRoot/liberProj/<br>No session</td>
 					</tr>
 					<tr>
-						<td><b>liberPHP</b></td>
+						<td><b>liberPHP2</b></td>
 						<td>/top/test</td>
 						<td><b>27-30</b>ms</td>
 						<td>Including (1ms-4ms All-in-one)<br>
@@ -491,16 +491,23 @@ Coming soon ...
 							</td>
 					</tr>
 					<tr>
-						<td><b>liberPHP</b> with embeded HTML Render</td>
+						<td><b>liberPHP2</b> with embeded HTML Render</td>
 						<td>/top/test</td>
 						<td><b>32-41</b>ms</td>
 						<td>Use Embeded Template engine to render HTML</td>
 					</tr>
 					<tr>
-						<td><b>liberPHP</b> with Smarty</td>
+						<td><b>liberPHP2</b> with Smarty</td>
 						<td>/top/test</td>
 						<td><b>71</b>ms</td>
 						<td>Use Smarty to render HTML</td>
+					</tr>
+					<tr>
+						<td><b>FuelPHP</b> no HTML Render</td>
+						<td>Helloword</td>
+						<td><b>434</b>ms<br>(As the same level with LiberPHP1.x, archived now)</td>
+						<td>
+						</td>
 					</tr>
 					<tr>
 						<td><b>CakePHP</b> with Smarty</td>
@@ -510,6 +517,13 @@ Coming soon ...
 							With default performance options,<br>
 							Using .htaccess(default)<br>
 							And there is no error on the page.
+						</td>
+					</tr>
+					<tr>
+						<td><b>Symphony2</b> with Swig</td>
+						<td>standalone toppage</td>
+						<td><b>Sorry no response at all</b><br><b>7377</b>ms (c=10,n=10)</td>
+						<td>
 						</td>
 					</tr>
 				</table>
