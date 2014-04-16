@@ -754,7 +754,15 @@ class REQ {
 		//check filter
 		$file = APP_DIR.__SLASH__."restful".__SLASH__.$schema.".inc";
 		if(file_exists($file)) require_once $file;
-		$pk = db_schema($schema)["general"]["pk"];
+		$schemaDef =db_schema($schema);
+		$method = strtolower($_SERVER["REQUEST_METHOD"]);
+		$restful =  strtolower($schemaDef["general"]["restful"]?$schemaDef["general"]["restful"]:"");
+		if(!empty($resful) && $restful!="all" && !str_has($restful, $method)){
+			//not permit restful on this schema
+			return error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
+		}
+		
+		$pk = $schemaDef["general"]["pk"];
 		$params = self::$params;
 		if(isset($params[$pk]) && !isset($params["@id"]))
 			$params["@id"] = $params[$pk];
@@ -769,8 +777,7 @@ class REQ {
 			}
 		}else{
 			$re  = $delegate($schema, $params);
-			if(!$re)
-				error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
+			if(!$re) error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
 		}
 	}
 	
