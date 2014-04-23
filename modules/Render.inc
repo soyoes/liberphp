@@ -94,7 +94,7 @@ class Render {
 	function render_file($file,$data=[]){
 		$filepath = self::$path.$file;
 		if(!file_exists($filepath)) return false;
-		$prefix  = 'template-' . REQ::getClientTemplateType() . '-';
+		$prefix  = 'template-' . REQ::getTemplateType() . '-';
 		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
 		if(!file_exists($outpath)
 			||(Consts::$template_check && filemtime($filepath) > filemtime($outpath))){
