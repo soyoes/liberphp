@@ -2,12 +2,10 @@
 
 class Session {
 	static function start(){
-		//TODO CHECK commend line
-		/*
+		/* TODO CHECK commend line
 		if($_REQUEST["client_type"]=="cmd"){
 			return $session;
-		}
-		*/
+		}*/
 		session_start();
 		$ua = $_SERVER['HTTP_USER_AGENT'];
 		$time = time();
@@ -17,27 +15,28 @@ class Session {
 			$_SESSION["UA"] = $ua;
 			$_SESSION["ISSUED_HOST"] = $_SERVER["SERVER_NAME"];
 			$_SESSION["ISSUED_AT"] = $time;
+			$_SESSION["CSRF_NOUNCE"] = md5(uniqid(rand(), TRUE));//secret cookie for CSRF attack
+			setcookie("sidsecr", sha1($_SESSION["CSRF_NOUNCE"]), $time+86400*30, "/");
 		}else{
 			if($_COOKIE["sid"]!=md5($_SESSION["IP"]."|".$_SESSION["UA"])
 				|| $time-(isset($_SESSION["ISSUED_AT"])?$_SESSION["ISSUED_AT"]:0)>=Consts::$session_lifetime){
 				//clear cookie
-				setcookie("sid", "", 1);
-				unset($_COOKIE["sid"]);
-				session_unset();
-				session_destroy();
+				self::clear();
 				return self::start();
-			}
-		}
-		//check CSRF token
-		if(Consts::$csrf_check){
-			$span = Consts::$csrf_lifetime;
-			$expired = isset($_SESSION['@token']) && $time-(isset($_SESSION['@token_time'])?$_SESSION['@token_time']:0)>=$span;
-			if($expired) $_SESSION["@token_old"] = $_SESSION["@token"];
-			if(!isset($_SESSION['@token']) || $expired){
-				$_SESSION['@token'] = md5(uniqid(rand(), TRUE));
-				$_SESSION['@token_time'] = $time;
+			}else if($_COOKIE["sidsecr"]!=sha1($_SESSION["CSRF_NOUNCE"])){
+				self::clear();
+				return error(400); // maybe cross domain
 			}
 		}
 	}
+	
+	private static function clear(){
+		setcookie("sid", "", 1);
+		setcookie("sidsecr", "", 1);
+		unset($_COOKIE["sid"]);
+		unset($_COOKIE["sidsecr"]);
+		session_unset();
+		session_destroy();
+	} 
 	
 }

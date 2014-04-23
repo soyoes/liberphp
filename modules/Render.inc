@@ -12,6 +12,8 @@
  * TODO text locale
  * TODO CSS
  * 
+ * TODO add custome tags like <liber::pages>
+ * 
  * OK{ (condition) ? var1 : var2 }
  * OK{ $a : $b }
  * 
@@ -44,31 +46,45 @@ class Render {
 	 */
 	function render($file,$data=[],$layout=null){
 		$template = isset($layout)? $layout : $this->layout;
-		$key = 'template-'. REQ::getClientTemplateType() . "-" .$template;
+		$key = 'template-'. REQ::getTemplateType() . "-" .$template;
 		$s = cache_get($key, function($f){
-			$key_prefix = 'template-'. REQ::getClientTemplateType() . "-";
+			$key_prefix = 'template-'. REQ::getTemplateType() . "-";
 			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
 		},false);
 		list($before, $after) = explode('__CONTENTS__', $s);
-		echo $before;
+		if(!(REQ::isTestMode() && REQ::stackSize()>1)) 
+			REQ::write($before, "html");
 		//set variables
 		if(!empty($data))
 		foreach ($data as $k=>$v)
 			$this->data[$k] = $v;
 		extract($this->data);
+		//$output="--";
 		if(is_string($file)){
 			$r = $this->render_file($file,$data);
-			if($r) include($r);
+			if($r) {
+				ob_start(); include($r);
+				$output = ob_get_contents();
+				ob_end_clean();
+			};
 		}else if(is_array($file))
 			foreach ($file as $f){
 				$r = $this->render_file($f,$data);
-				if($r) include($r);
+				if($r) {
+					ob_start(); include($r);
+					$output = ob_get_contents();
+					ob_end_clean();
+				};
 				flush();
 			}
+		REQ::write($output, "html");
 		//if($after) {include $after;flush();}
-		echo $after;
+		if(!(REQ::isTestMode() && REQ::stackSize()>1)) 
+			REQ::write($after, "html");
+		
 		unset($this->data);
 		unset($data);
+
 	}
 	
 	/**
@@ -78,7 +94,8 @@ class Render {
 	function render_file($file,$data=[]){
 		$filepath = self::$path.$file;
 		if(!file_exists($filepath)) return false;
-		$outpath = self::$output_path.'template-'.str_replace(self::$ext,'.php',$file);
+		$prefix  = 'template-' . REQ::getClientTemplateType() . '-';
+		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
 		if(!file_exists($outpath)
 			||(Consts::$template_check && filemtime($filepath) > filemtime($outpath))){
 			$code = $this->compile($filepath);
@@ -149,12 +166,44 @@ class Render {
 						case 'ignore':
 							$ignore = true;
 							break;
-						default:break;
+						default:
+							
+							break;
 					}//end switch
 				}//end else
 			}
 		}
 		return $phpcode;
+	}
+	
+	/**
+	 * 
+	 * @param page: current page number
+	 * @param total: total records
+	 * @param opts: assoc-array (paginate options), perPage|items
+	 * @return : array of page index numbers. (starts with 1)
+	 * @example : 
+	 * 		Render::paginate(11,100);
+	 *		// result :
+	 *		{pages:[1,0,7,8,9,10,11,12,13,14,15,0,100], cursor:6}
+	 * 		// 0 means nothing/blank/...
+	 *
+	 * */
+	static function paginate($page,$total,$opts=['perPage'=>20]){
+		$pp = ($opts[perPage]>0)? $opts[perPage]: 20;
+		$pi = $opts['items']?$opts['items']:9; 
+		$ptt = ceil($total/$pp); $half=floor($pi/2);
+		$pages = []; $begin = max(1,$pp-$half); $end = min($ptt, $pp+$half);
+		$cursor = 0;
+		for($i=$begin;$i<=$end;$i++){
+			$pages[]=$i;
+			if($i<$page) $cursor++;
+		}
+		if($begin>2) {$pages = [1,0]+$pages; $cursor+=2;} 
+		if($begin==2) {array_unshift($pages, 1); $cursor++;}
+		if($ptt-$end>2) $pages += [0,$ptt];
+		if($ptt-$end==2) $pages []= $ptt;
+		return ['pages'=>$pages,'cursor'=>$cursor];
 	}
 	
 }

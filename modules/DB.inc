@@ -406,7 +406,7 @@ function db_import($table, $datas){
 /**
  * make SQL query from query condition array
  * @param $table:tablename 
- * @param $opts:array or string 
+ * @param $opts:hash or str
 		if opts is Array : reserved keywords in opts  
  		* fields = default = * ||  id,pass,... || [id, pass, name ...] || count(*) 
  		* limit : 0/default=all, 0,20=select 0~20, 21~80= select from 21 get 60 records 
@@ -417,80 +417,29 @@ function db_import($table, $datas){
  * @return array or false
  */
 function db_make_query($table, $opts=[], $omit=[]){
-	/*Test cases
-	 "id"=> 16
-	"id@>"=>16,
-	"id@<"=>16,
-	"id@>="=>16,
-	"id@<="=>16,
-	"lng@[]"=>[1,3,55],
-	"lng@![]"=>[],
-	"lng@![]"=>[2,4],
-	"lat@()"=>[153, 340],
-	"lat@!()"=>[999, 20],
-	"title@?"=>"cocoa",
-	"title@!?"=>"co%coa",
-	"title@~"=>"/^My/",
-	"title@~~"=>"^My",
-	"title@!~~"=>"'"
-	**/
-	if(empty(Consts::$db_query_filters))
-		Consts::$db_query_filters = [
-		"=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`=:$k";},
-		"!" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`!=:$k";},
-		"<" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<:$k";},
-		">" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>:$k";},
-		"<=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<=:$k";},
-		">=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>=:$k";},
-		"[]" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` IN (".join(",",$vs).")";},
-		"![]" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` NOT IN (".join(",",$vs).")";},
-		"()" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
-		"!()" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
-		"?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";},
-		"!?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";},
-		"~" 	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-		//Regexp only mysql or regexp
-		/*	@example db_find("users", ["title@~" => "^My"]) == select * from users where title regexp '^My'
-		 For MySQL : these are available
-		^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
-		*/
-		"!~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-		"~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-		"!~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-		//Regexp with ignorecase option only mysql or regexp
-	];
+	db_init_filters();
 	if(!isset($table))return false;
 	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :"`".join("`,`", $opts['fields'])."`")
 		 : (isset($opts['fields'])? '`'.preg_replace('/[`\s]*,[`\s]*/',"`,`",$opts['fields']).'`':'*');
-	$optStr = "";
 	$schemaDef = db_schema($table);
-	$schema = $schemaDef["schema"];
 	$pk = $schemaDef["general"]["pk"];
-	$eg = Consts::$db_engine;
+	$schema = $schemaDef["schema"];
 	$data = [];
 	if(is_hash($opts)){
+		$optStr = [];
 		foreach ($opts as $k => $v){
-			if(in_array($k,$omit))continue;
 			if($k=="@id")$k=$pk;
-			/*
-			if(is_callable($v)){
-				echo "2:$k $v\n";
-				list($key,$value)=explode("=", $k);
-				$val = $v($key, $value);
-				$optStr.= !empty($optStr) ? " AND $val ": " WHERE $val ";
-			}else{
-			*/
 			list($k,$cmd) = explode("@",$k);
-				
-			if(array_key_exists($k, $schema)){
+			if(array_key_exists($k, $schema) && !in_array($k,$omit)){
 				$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
 				$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
 				$func = Consts::$db_query_filters[$cmd];
 				$vStr = $func($k, $v, $data);
-				if($vStr)
-					$optStr.= !empty($optStr) ? " AND ". $vStr : " WHERE ".$vStr;
+				if($vStr) $optStr []= $vStr;
 			}
 		}
+		$optStr =  empty($optStr) ? "": " WHERE ".join(" AND ", $optStr);
+		
 		if(!in_array("order",$omit) && !empty($opts["order"]))
 			$optStr .= " ORDER BY ".$opts["order"];
 		if(!in_array("limit",$omit) && !empty($opts["limit"]))
@@ -673,4 +622,50 @@ function db_v($v, $typeDef="", $bsonText=false){
 		return "'".mysql_escape_string($v)."'";
 	} 
 	return $v;
+}
+
+
+
+function db_init_filters(){
+	/*Test cases
+	 "id"=> 16
+	"id@>"=>16,
+	"id@<"=>16,
+	"id@>="=>16,
+	"id@<="=>16,
+	"lng@[]"=>[1,3,55],
+	"lng@![]"=>[],
+	"lng@![]"=>[2,4],
+	"lat@()"=>[153, 340],
+	"lat@!()"=>[999, 20],
+	"title@?"=>"cocoa",
+	"title@!?"=>"co%coa",
+	"title@~"=>"/^My/",
+	"title@~~"=>"^My",
+	"title@!~~"=>"'"
+	**/
+	if(empty(Consts::$db_query_filters))
+		Consts::$db_query_filters = [
+		"=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`=:$k";},
+		"!" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`!=:$k";},
+		"<" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<:$k";},
+		">" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>:$k";},
+		"<=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<=:$k";},
+		">=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>=:$k";},
+		"[]" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` IN (".join(",",$vs).")";},
+		"![]" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` NOT IN (".join(",",$vs).")";},
+		"()" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
+		"!()" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
+		"?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";},
+		"!?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";},
+		"~" 	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		//Regexp only mysql or regexp
+		/*	@example db_find("users", ["title@~" => "^My"]) == select * from users where title regexp '^My'
+			For MySQL : these are available : ^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
+		*/
+		"!~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		"~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		"!~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		//Regexp with ignorecase option only mysql or regexp
+	];
 }
