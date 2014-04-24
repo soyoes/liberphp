@@ -22,9 +22,11 @@
 			<dd><a href="#@s_install">Installation</a></dd>
 			<dd><a href="#@s_hello">Hello world !</a></dd>
 			<dd><a href="#@s_restful">RESTful dispatching</a></dd>
-			<dd><a href="#@s_db_model">DB & Model</a></dd>
+			<dd><a href="#@s_db_model">DB, Model, Schema</a></dd>
 			<dd><a href="#@s_cache">Use Cache</a></dd>
-			<dd><a href="#@s_auth">Auth</a></dd>
+			<dd><a href="#@s_template">HTML Template</a></dd>
+			<dd><a href="#@s_local">Localization(Multi-Lang)</a></dd>
+			<dd><a href="#@s_auth">Filters & Auth</a></dd>
 			<dd><a href="#@s_test">Unit Test</a></dd>
 			<dd><a href="#@s_performance">Performance Test</a></dd>
 			<dd><a href="#@s_next">What's Next?</a></dd>
@@ -162,6 +164,165 @@ static $cache_port	= "11211";	#<- change to your own
 					</tr>
 				</table>
 				
+				<div>
+					<h4>Restful Request Query Commands</h4>
+					<table>
+						<tr>
+							<th>Command<br>(browser)</th><th>Alias<br>(db_find)</th><th>Syntax</th><th>Example</th><th>Description</th>
+						</tr>
+						<tr><td>eq</td><td>=</td><td>
+								${column_name}=${v}
+							</td><td>
+								<strong>browser :</strong>/@tasks?id=5<br>
+								<strong>db_find :</strong>db_find("tasks", [id=&gt;5]);
+							</td><td>equal
+								<br><code>select * from tasks where id=5;</code>
+							</td></tr>
+						<tr><td>ne</td><td>!</td><td>
+								<strong>browser :</strong>${column_name}@ne=${v}<br>
+								<strong>db_find :</strong>[ "${column_name}@!" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@ne=5<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@!"=&gt;5]);
+							</td><td>not equal
+								<br><code>select * from tasks where id != 5;</code>
+							</td></tr>
+						<tr><td>lt</td><td>$lt;</td><td>
+								<strong>browser: </strong>${column_name}@lt=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@&lt;" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@lt=5<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@&lt;"=&gt;5]);
+							</td><td>less than
+								<br><code>select * from tasks where id &lt; 5;</code>
+							</td></tr>
+						<tr><td>gt</td><td>$gt;</td><td>
+								<strong>browser: </strong>${column_name}@gt=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@&gt;" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@gt=5<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@&gt;"=&gt;5]);
+							</td><td>greate than
+								<br><code>select * from tasks where id &gt; 5;</code>
+							</td></tr>
+						<tr><td>le</td><td>$le;</td><td>
+								<strong>browser: </strong>${column_name}@le=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@&le;" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@le=5<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@&le;"=&gt;5]);
+							</td><td>less than or equal
+								<br><code>select * from tasks where id &le; 5;</code>
+							</td></tr>
+						<tr><td>ge</td><td>$ge;</td><td>
+								<strong>browser: </strong>${column_name}@ge=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@&ge;" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@ge=5<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@&ge;"=&gt;5]);
+							</td><td>greate than or equal
+								<br><code>select * from tasks where id &ge; 5;</code>
+							</td></tr>
+						<tr><td>in</td><td>[]</td><td>
+								<strong>browser: </strong>${column_name}@in=${v1,v2 ...} <br>
+								<strong>db_find: </strong>[ "${column_name}@[]" =&gt; ${v1,v2 ...} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@in=5,6<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@[]"=&gt;[5,6]]);
+							</td><td>sql in clause
+								<br><code>select * from tasks where id in (5,6);</code>
+							</td></tr>
+						<tr><td>nin</td><td>![]</td><td>
+								<strong>browser: </strong>${column_name}@nin=${v1,v2 ...} <br>
+								<strong>db_find: </strong>[ "${column_name}@![]" =&gt; ${v1,v2 ...} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@nin=5,6<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@![]"=&gt;[5,6]]);
+							</td><td>sql not in clause
+								<br><code>select * from tasks where id not in (5,6);</code>
+							</td></tr>
+						<tr><td>bt</td><td>()</td><td>
+								<strong>browser: </strong>${column_name}@bt=${v1,v2} <br>
+								<strong>db_find: </strong>[ "${column_name}@!()" =&gt; ${v1,v2} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@bt=5,20<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@!()"=&gt;[5,20]]);
+							</td><td>sql between
+								<br><code>select * from tasks where id between (5,20);</code>
+							</td></tr>
+						<tr><td>nb</td><td>!()</td><td>
+								<strong>browser: </strong>${column_name}@nb=${v1,v2} <br>
+								<strong>db_find: </strong>[ "${column_name}@!()" =&gt; ${v1,v2} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?id@nb=5,20<br>
+								<strong>db_find :</strong>db_find("tasks", ["id@!()"=&gt;[5,20]]);
+							</td><td>sql not between
+								<br><code>select * from tasks where id not between (5,20);</code>
+							</td></tr>
+						<tr><td>l</td><td>?</td><td>
+								<strong>browser: </strong>${column_name}@l=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@?" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?title@l=abc<br>
+								<strong>db_find :</strong>db_find("tasks", ["title@?"=&gt;"abc"]);
+							</td><td>sql like
+								<br><code>select * from tasks where title like '%abc%';</code>
+							</td></tr>
+						<tr><td>nl</td><td>!?</td><td>
+								<strong>browser: </strong>${column_name}@nl=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@!?" =&gt; ${v} ]
+							</td><td>
+								<strong>browser :</strong>/@tasks?title@nl=abc<br>
+								<strong>db_find :</strong>db_find("tasks", ["title@!?"=&gt;"abc"]);
+							</td><td>sql not like
+								<br><code>select * from tasks where title not like '%abc%';</code>
+							</td></tr>
+						<tr><td>m<b>(TODO)</b></td><td>~</td><td>
+								<strong>browser: </strong>${column_name}@m=${v} <br>
+								<strong>db_find: </strong>[ "${column_name}@~" =&gt; ${v} ]
+							</td><td>
+								<strong>db_find :</strong>db_find("tasks", ["title@~"=&gt;"abc|bcd"]);
+							</td><td>sql regex match
+								<br><b>mysql/postgres only</b>
+								<br>For MySQL : these are available : 
+								<br><b>^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}</b>
+								<br>MySQL example
+								<br><code>select * from tasks where title regexp 'abc|bcd';</code> 
+							</td></tr>
+						<tr><td>nm<b>(TODO)</b></td><td>!~</td><td>
+								<strong>db_find: </strong>[ "${column_name}@&lt;" =&gt; ${v} ]
+							</td><td>
+								<strong>db_find :</strong>db_find("tasks", ["id@&lt;"=&gt;5]);
+							</td><td>sql regex not match<br>mysql/postgres only</td></tr>
+						<tr><td>mi<b>(TODO)</b></td><td>~~</td><td>
+								<strong>db_find: </strong>[ "${column_name}@&lt;" =&gt; ${v} ]
+							</td><td>
+								<strong>db_find :</strong>db_find("tasks", ["id@&lt;"=&gt;5]);
+							</td><td>sql regex match(ignore case)<br>mysql/postgres only</td></tr>
+						<tr><td>nmi<b>(TODO)</b></td><td>!~~</td><td>
+								<strong>db_find: </strong>[ "${column_name}@&lt;" =&gt; ${v} ]
+							</td><td>
+								<strong>db_find :</strong>db_find("tasks", ["id@&lt;"=&gt;5]);
+							</td><td>sql regex not match(ignore case)<br>mysql/postgres only</td></tr>
+					</table>
+				</div>
+				
+				<div>
+					<h4>Customize Your Restful Request Permissions</h4>
+					<div>
+						<h4>Use schema file</h4>
+						<p>
+						@see : [general][restful] of chapter <a href="#@s_db_model_schema">DB, Model, Schema</a> 
+						</p>
+					</div>
+					<div>
+						<h4>Use delegate</h4>
+						<p>
+						</p>
+					</div>
+				</div>
+				
+				
 				<div id="@rest_example_1" class="example">
 					<h4>Example_1 : Call controller with default action using GET method</h4>
 					<p>Given that the URI = /mycontroller?id=1&name=sss</p>
@@ -218,7 +379,7 @@ $.post('/mycontroller',{id:1,title:"blah blah..."});
 &gt; curl http://myproj.dev/@tasks?order=desc&sort=updAt&limit=20
 
 #Get tasks that title like '%test%' and register after 2013-10-30
-&gt; curl http://myproj.dev/@tasks?title@like=test&amp;regAt@gt=2013-10-30
+&gt; curl http://myproj.dev/@tasks?title@l=test&amp;regAt@gt=2013-10-30
 
 #Get task with id=35
 &gt; curl http://myproj.dev/@tasks/35
@@ -288,7 +449,42 @@ function rest_tasks_post($table, $params){
 				
 			</section>
 			<section id="@s_db_model">
-				<header>DB & Model</header>
+				<header>DB & Model & Schema</header>
+				<div  id="@s_db_model_schema">
+					<h4>Schema (DB table definations)</h4>
+					<p>You must tell liberPHP about your db schemas before you use db functions.
+					<br>the schema files are under PROJ_HOME/conf/schemas/*.ini
+					<br>Here is a very simple example. of file PROJ_HOME/conf/schemas/tasks.ini
+					</p>
+					<code>
+[general]
+name = tasks				//table name = tasks
+pk = id					//primary key = id
+restful = "get,post"		//permit http get/post restful request.
+							//all : permit all
+							//none : disable auto restful
+
+[schema]
+id 			= "BIGINT NOT NULL AUTO_INCREMENT"
+ownerId		= "BIGINT NOT NULL"
+title		= "varchar(256)"					
+
+[index]
+ownerId 	= "normal"		//create index on ownerId
+					</code>
+					
+				</div>
+				
+				<div>
+					<h4>DB Migration</h4>
+					<p>After defined schema files. You can create tables using migrate method via command line. 
+					<br><b>NOTICE:</b> for this moment. you have to create database and db user manually.
+					</p>
+					<code>
+&gt; php liber.php migrate
+					</code>
+				</div>
+				
 				<div>
 					<h4>DB Query</h4>
 					<code>
@@ -371,7 +567,220 @@ $id = $res[0]["last_id"];
 				<ul>
 				<li>We use both APC & Memcached as our cache system 
 				<code>
-Coming soon ...
+//get from cache
+/**
+@param $callback: a function returns value of $key, it is used when $key not exists in APC or Memcache 
+@param $use_memcache: true means get from APC first then Memcache. false=APC only 
+*/
+cache_get($key, $callback, $use_memcache=true){}
+
+cache_set($key, $value, $use_memcache=true){}
+
+/** @see <a href="index.php?f=Caches.inc">Cache.inc</a> for more informations*/
+				</code>	
+				</li>
+				</ul>
+			</section>
+			<section id="@s_template">
+				<header>HTML Template</header>
+				<ul>
+				<li>LiberPHP2 provides a lightway & very fast HTML render.
+					<div>There are only less than 10 kinds of keywords/syntax, <br>
+					if you have the expierence of Smarty or other html templates, it will be very easy to understand.</div>
+					<div>
+						<h4>Template File Path</h4>
+						<p>The HTML render compiles your template files to equivalent php file and cache them under <b>PROJECT_HOME/tmp</b> 
+							<br>The template file path</p>
+						<code>
+PROJECT_HOME/views/{$CLIENT_TYPE}/{$CONTROLLER_NAME}_{$ACTION_NAME}.html
+/*
+CLIENT_TYPE : depends where the request comes from. 
+	type could be one of the following types.
+	* pc : request from a PC browser
+	* sm : request from smartphone, such as iPhone, iPod touch, Android
+	* pad : request from iPad or some brands of Android such like Galaxy...
+	* bot : a bot(spider) from google, Yahoo ... 					
+*/
+						</code>
+						<h4>The Layout File</h4>
+						<p>You can specify a layout file for certain kinds of template
+							<br>the file should be found as <b>/views/{$CLIENT_TYPE}/_layout.html</b>
+							<br>the content of layout file should have a preserved keyword called <b>__CONTENTS__</b> 
+							<br>without <b>__CONTENTS__</b> the contents fetched from the template file won't be rendered.
+							<br>Here is the example of a layout file
+						</p>
+						<code>
+&lt;html&gt;
+	&lt;head&gt;
+	&lt;title&gt;LiberPHP2&lt;/title&gt;
+	&lt;meta http-equiv="X-UA-Compatible" content="IE=edge"&gt; 
+	&lt;meta http-equiv="Content-Type" content="text/html; charset=utf-8"&gt;
+	&lt;meta name="description" content=""&gt;
+	&lt;link rel="stylesheet" href="/css/my_css.css" type="text/css" /&gt;
+	&lt;script src="/js/my_js.js"&gt;&lt;/script&gt;
+	&lt;/head&gt;
+	&lt;body&gt;
+	__CONTENTS__
+	&lt;/body&gt;
+&lt;/html&gt;
+						</code>
+						
+						<h4>Compiled php file path</h4>
+						<code>PROJECT_HOME/views/{$CLIENT_TYPE}/template-{$CONTROLLER_NAME}_{$ACTION_NAME}.php</code>
+					</div>
+					
+					<div>
+						<h4>Keywords & Syntax</h4>
+						<table>
+							<tr>
+								<th>Keywords/Syntax</th><th>Example</th><th>Equivalent PHP code</th><th>Description</th>
+							</tr>
+							<tr>
+								<td>{$VAR_NAME}</td><td><code>{$myVar}</code></td><td><code>echo $myVar;</code></td><td>echo a php variable</td>
+							</tr>
+							<tr>
+								<td>{% KEY_NAME}</td>
+								<td><code>{% myfile.mykey}</code></td>
+								<td><code>T("myfile.mykey");</code></td><td>echo localized string</td>
+							</tr>
+							<tr>
+								<td>{var}</td><td><code>{var $myvar=1}</code></td><td><code>$myvar=1;</code></td><td>declare a local php variable</td>
+							</tr>
+							<tr>
+								<td>{if}, {elseif}, {else}</td>
+								<td>
+								<code>
+{if $myvar>100}
+	larger than 100
+{elseif $myvar<1}
+	less than 1
+{else}
+	others
+								</code>
+								</td>
+								<td>
+									<code>
+if($myvar>100) 
+	echo "larger than 100";
+elseif($myvar<1) 
+	echo "less than 1";
+else 
+	echo "others";</code>
+									</td><td>if else ... clause</td>
+							</tr>
+							<tr>
+								<td>{for}, {break}</td>
+								<td>
+								<code>
+/*
+given that 
+$arr=[ 
+	[title=>"title1"],
+	[title=>"title2"]
+	...
+]
+*/
+{for $arr,$item}
+	{$item.title}
+{/for}
+								</code></td>
+								<td>
+								<code>
+foreach($arr as $item)
+	echo $item["title"];
+								</code>
+								</td>
+								<td>foreach, for ... break clause</td>
+							</tr>
+							<tr>
+								<td>{ignore}</td>
+								<td>
+									<code>
+&lt;script&gt;
+{ignore}
+var myJSVar = {id:"myId"};
+{/ignore}
+&lt;script&gt;
+									</code>
+								</td>
+								<td>
+									<code>
+$code = &lt;&lt;&lt;EOF
+&lt;script&gt;
+var myJSVar = {id:"myId"};
+&lt;script&gt;
+EOF;
+echo $code; 
+									</code>
+								</td><td>ignore keywords</td>
+							</tr>
+							<tr>
+								<td>{include}</td>
+								<td>
+									<code>
+{include 'myfile.html'}
+									</code>
+								</td>
+								<td>
+								</td><td>include other templates</td>
+							</tr>
+							<tr>
+								<td>{comment}<b>(TODO)</b></td><td></td><td></td><td><b>TODO</b> not available yet</td>
+							</tr>
+						</table>
+					</div>
+					<div>
+						<h4>To Assign Values & render</h4>
+						<code>
+//in your controller file : /controllers/mycontroller.inc
+function myaction($params){
+	assign('myvar_1', "val_1");
+	render_html(null, [my_var2 =&gt; "val_2"]); //null means use default template name : mycontroller_myaction.html
+}
+
+//in your template file : /views/pc/mycontroller_myaction.html
+&lt;div&gt;{$myvar_1}&lt;/div&gt;
+&lt;div&gt;{$myvar_2}&lt;/div&gt;
+
+//the result will be something like
+&lt;div&gt;val_1&lt;/div&gt;
+&lt;div&gt;val_2&lt;/div&gt;
+						</code>
+					</div>	
+				</li>
+				</ul>
+			</section>
+			
+			<section id="@s_local">
+				<header>Localization</header>
+				<ul>
+				<li>LiberPHP2 provides a very simple way to support multi-languages. 
+				<code>
+//in your liber.php
+Consts::$lang = "en";
+
+//in your text file : /conf/text/en/file1.ini
+key1 = foo
+key3 = bar
+
+//in your text file : /conf/text/en/mycontroller.ini
+key2 = hello
+
+				
+//in your controller file : /controllers/mycontroller.inc
+function myaction($params){
+	assign('myvar_1', T("file1.key1"));
+	assign('myvar_2', T("key2")); //if no file name, render will try to use /conf/text/en/mycontroller.ini 
+	render_html();
+}
+
+//in your template file : /views/pc/mycontroller_myaction.html
+{$myvar_2}, {$myvar_1} {% file1.key3}
+
+//the result will be
+hello, foo bar 
+
+
 				</code>	
 				</li>
 				</ul>
@@ -395,57 +804,82 @@ You could be familiar with the following process.
 We Use Filters to check Auth
 					</code>
 				</li>
-				
 				<li>AuthFilter Example
-					<code>
-Coming soon ...
-					</code>				
+					<div>
+						<h4>Configuration</h4>
+						<code>
+//in your liber.php
+class Consts{
+	...
+	static $filters				= ['auth'=>'*'];					
+						</code>
+					</div>
+					<div>
+						<h4>Add a authfilter class</h4>
+						<code>
+//file : /filters/auth.inc
+&lt;?php
+class AuthFilter extends Filter{
+	/**
+	@param $params : parameters of your http request.
+	@param $authRequired: depends on your controller file->$auth_action
+	*/
+	public function before($params, $authRequired){
+		if($authRequired && !($_SESSION['user_id'])){
+			return false;
+		}
+		return true;
+	}
+}
+						</code>			
+					</div>	
 				</li>
 				</ol>
 			</section>
 			<section id="@s_test">
 				<header>Unit Test</header>
 				<ol>
-					<li>Create test case file under /test with a name of ${YOUR_CONTROLLER}.json</li> 
-  					<li>Add test case to /test/${YOUR_CONTROLLER}.json<br>
-  						Example:<br>
-  						<code>
-{
-"add":[
-	{
-		"method":"GET",
-		"params":{
-			"uid":"abcdef",
-			"data":[
-				"movie_1009_1315480852_1315780852",
-				"shows_1007_1315880852_1316080852"
-			]	
-		}
-	}
-],
-"update":[
-	{
-		"method":"GET",
-		"params":{
-			"uid":"abcdef",
-			"data":[
-				"1_test_1009_1315480852_1315780852",
-				"2_test_1007_1315880852_1316080852"
-			]
-		}
-	},
-	{
-		"method":"GET",
-		"params":{
-			"uid":"abcdef",
-			"data":"1_test_1009_1315480852_1315780852"
-		}
-	}
-]
-}
-  						</code>
+					<li>Create test case file under /test with a name of ${YOUR_CONTROLLER}_${YOUR_ACTION}.csv</li> 
+  					<li>Add test case to /test/${YOUR_CONTROLLER}_${YOUR_ACTION}.csv<br>
+ 						<div>
+  						<h4>Example of CSV:</h4> 						
+  						<table>
+  							<tr>
+  								<th>[method]</th>
+  								<th>param_1</th>
+  								<th>param_2</th>
+  							</tr>
+  							<tr>
+  								<td>get</td>
+  								<td>1</td>
+  								<td>abc</td>
+  							</tr>
+  							<tr>
+  								<td>post</td>
+  								<td>2</td>
+  								<td>def</td>
+  							</tr>
+  						</table>
+  						<p>* use column name "[method]" to specify your HTTP method</p> 
+ 						</div>
+						
+						<div>
+  						<h4>Run the test cases</h4>
+  						<p>
+							From your browser , visit http://${YOUR_HOSTNAME}/${YOUR_CONTROLLER}/test_${YOUR_ACTION} with no params 
+  						</p>
+  						</div>
+  						
+ 						<div>
+  						<h4>Example of test result (HTML)</h4>
+  						<img src="images/test_case_html.png"/>
+  						</div>
+  						
+  						<div>
+  						<h4>Example of test result (JSON) : json data will be print out as <TABLE></h4>
+  						<img src="images/test_case_json.png"/>
+  						</div>
   					</li>
-  					<li>Debug with URL of /${YOUR_CONTROLLER}/test_${YOUR_ACTION}, without any parameters!.</li>
 				</ol>
 			</section>
 			<section id="@s_performance">

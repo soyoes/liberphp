@@ -291,7 +291,7 @@ function T($key){
 	]
  * ]
  * */
-function parse_uri($uri, $method, $params=[], $ua=""){
+function parse_uri($uri, $method, &$params=[], $ua=""){
 	$host =$_SERVER["SERVER_NAME"];
 	if(empty($uri)) $uri = $_SERVER["REQUEST_URI"];
 	if(empty($method)) $method = $_SERVER["REQUEST_METHOD"];
@@ -325,7 +325,7 @@ function parse_uri($uri, $method, $params=[], $ua=""){
 	}
 }
 
-function parse_rest_uri($uri, $method, $params){
+function parse_rest_uri($uri, $method, &$params){
 	$uri = preg_replace("/^\//","",$uri);
 	$uparts =ds_remove(explode("/",$uri), "");
 	$method = strtolower($method);

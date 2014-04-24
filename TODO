@@ -1,34 +1,55 @@
 
-OK : Add RESTFul to schema.ini [general][restful] 
-OK : Core::dispatch -> + parameters $_REQUEST as default
-OK : Core::parse_rest_uri -> + parameters $_REQUEST as default
-OK : Core::parse_uri + parameters
-OK : Core::parse_ua + parameters
 
 # : add 2nd parameter $authRequired  to Filters' document  
 # : update document about RESTful conf in schema.ini
 
-OK : remove parameter level csrf check
 
 OK : Render get HTML code. OR include multiple php file *****
+	# : document.
 
 OK : let T to load from ini instead of json
 	# : add conf/text/en conf/text/jp folder to installer
 	# : add conf/text/en/dummy.ini conf/text/jp/dummy.ini to example/installer
 	# : update document about T function, filename.keyname or mykey(=controller.mykey)
 		# change lang need restart apache
+		
+# : fix document.php bugs		
+
+# : add mode : develop mode | product mode
+	//log, test_, template check timestamp
+-------------
+# : add delegate folder , SessionDelegate, RestfulDelegate,  RenderDelegate
+# : add default empty delegate file via installer
+-------------
+# : render
+	
+	assign template_name
+	render customize tag
+	
+		
 -----------
-# : render.<page>
+# : test render.<page>
+
 ------------
 # : customize domain
--------------
-# : add delegate folder , SessionDelegate, RestfulDelegate, RenderDelegate
-# : add default empty delegate file via installer
------------
-
+	use controller prefix
+	dont forget Test::exec	
 
 -------------
 # : add OR query to restful ?
+
+------------
+
+# : query escape 
+	http request
+	For MySQL : these are available : ^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
+	
+	
+	
+
+-----------
+
+
 ------------
 *: oauth2 server/client
 ------------

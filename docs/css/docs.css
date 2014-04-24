@@ -78,3 +78,6 @@ th,td{padding-left:5px;padding-right:5px;vertical-align:top;
 	border-bottom:1px solid #CCC;border-left:1px solid #CCC;}
 td {font-size:11pt;}
 td b{color:red;font-size:11pt;}
+strong{clear:both;display:block;}
+td code{margin:0px;margin-top:5px;margin-bottom:5px;padding:5px;line-height:18px;font-size:9pt;}
+

@@ -53,7 +53,9 @@ EOF;
 	static function writeJSON($text){
 		$data = json_decode($text,true);
 		echo "<table>";
-		if(is_hash($data)){
+		if(empty($data)){
+			echo "<tr><td>Empty</td></tr></table><div>Response Type : JSON(array)</div>";
+		}else if(is_hash($data)){
 			echo "<tr><th>".join("</th><th>",array_keys($data))."</th></tr>";
 			echo "<tr><td>".join("</td><td>",array_values($data))."</td></tr>";
 			echo "</table><div>Response Type : JSON(assoc_array)</div>";	
@@ -113,7 +115,7 @@ EOF;
 		foreach ($case as $k=>$v){
 			if(!str_has($k,"[")) $params[$k] = $v;
 		}
-		$paramStr  = str_replace("%2C",",", http_build_query($params));
+		$paramStr  = str_replace(["%2C","&"],[",","&amp;"], http_build_query($params));
 		echo "<div class='case'>";
 		echo "<h3> $idx) ".strtoupper($method)." : $uri $paramStr</h3>";
 		$req = REQ::dispatch($uri, $method, $params);

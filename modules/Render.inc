@@ -184,10 +184,8 @@ class Render {
 	 * @return : array of page index numbers. (starts with 1)
 	 * @example : 
 	 * 		Render::paginate(11,100);
-	 *		// result :
-	 *		{pages:[1,0,7,8,9,10,11,12,13,14,15,0,100], cursor:6}
-	 * 		// 0 means nothing/blank/...
-	 *
+	 		// result :{pages:[1,0,7,8,9,10,11,12,13,14,15,0,100], cursor:6}
+	 		// 0 means nothing/blank/...
 	 * */
 	static function paginate($page,$total,$opts=['perPage'=>20]){
 		$pp = ($opts[perPage]>0)? $opts[perPage]: 20;
