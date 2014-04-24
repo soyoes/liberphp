@@ -510,9 +510,9 @@ class REQ {
 				$controllers[]= $ctl;
 				if(str_ends($f,".inc")){
 					$ct = file_get_contents($f);
-					preg_match('/^\$auth_action\s*=\s*["\']*(?P<func>[\w,_\d]*)/m',$ct, $authDef);
+					preg_match('/^\$auth_action\s*=\s*["\']*(?P<func>[\w,_\d\*\s]*)/m',$ct, $authDef);
 					if(!empty($authDef)){
-						$auths[$ctl] = $authDef;
+						$auths[$ctl] = $authDef['func'];
 						$authDef = null;
 					}else{$auths[$ctl]=null;}
 				}
