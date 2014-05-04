@@ -91,8 +91,8 @@ function pdo_import($pdo, $table, $datas, $regName="regAt", $updName="updAt"){
 	$sql = "INSERT IGNORE INTO ".$table." (`".join("`,`", $cols)."`) VALUES ";
 	$time = time();
 	foreach ($datas as $d){
-		if($hasRegStamp){$d[$regName]=$time;}
-		if($hasTimestamp){$d[$updName]=$time;}
+		if($hasRegStamp && empty($d[$regName])){$d[$regName]=$time;}
+		if($hasTimestamp && empty($d[$updName])){$d[$updName]=$time;}
 		$vals = [];
 		foreach ($cols as $c){
 			$v = array_key_exists($c, $d) ? $d[$c] : null;
@@ -140,7 +140,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		$isUpdate = isset($id) && pdo_exists($pdo, $table, $id);
 	}
 	$sql = "";
-	if(array_key_exists($updName,$schema))
+	if(array_key_exists($updName,$schema) && !isset($data[$updName]))
 		$data[$updName] = ms();
 	$qdatas = [];
 	if ($isUpdate){

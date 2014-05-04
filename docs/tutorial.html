@@ -62,7 +62,7 @@
 					</li>
 					<li>Configurations
 						<code>
-&gt; vi liber.php
+&gt; vi conf/conf.inc
 						</code>
 						Change the following lines
 						<code>
@@ -756,7 +756,7 @@ function myaction($params){
 				<ul>
 				<li>LiberPHP2 provides a very simple way to support multi-languages. 
 				<code>
-//in your liber.php
+//in your conf/conf.inc
 Consts::$lang = "en";
 
 //in your text file : /conf/text/en/file1.ini
@@ -808,10 +808,8 @@ We Use Filters to check Auth
 					<div>
 						<h4>Configuration</h4>
 						<code>
-//in your liber.php
-class Consts{
-	...
-	static $filters				= ['auth'=>'*'];					
+//in your conf/conf.inc
+static $filters				= ['auth'=>'*'];					
 						</code>
 					</div>
 					<div>

@@ -323,3 +323,146 @@ function fs_mkdir($out){
 function fs_xml2arr($xmlString){
 	return json_decode(json_encode((array)simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA)), TRUE);
 }
+
+/**
+ * Get Annotations from comment string (multi-line)
+ * @param $comm: multi-line comment string.
+ * @example:
+ * 	fs_annotations("*this is a test function\n@param $a:int\n@param $b:string\n@permission:775\n*");
+ *  //the output will be
+ *  Array(
+ *  	"desc"	=> "this is a test function",
+ *   	"param"	=> [
+ *   		["attr"=>"$a", "value"=>"int"],
+ *   		["attr"=>"$b", "value"=>"string"],	
+ *   	],
+ *   	"permission"	=> "775"
+ *  ) 
+ *   
+ */
+function fs_annotations($comm){
+	$comm = explode("\n",preg_replace(['/\/\*\s*/m','/\s*\*\/\s*/m'],'',$comm));
+	$anno = [];
+	$rows = count($comm);
+	$tag = null; $value=[]; $attr= null;
+	for($i=0;$i<=$rows;$i++){
+		$cm = trim(preg_replace('/^\s*\**\s*/','',$i<$rows?$comm[$i]:''));
+		preg_match_all('/^@(?P<tag>[a-zA-Z]+)\s*(?P<attr>[a-zA-Z\d_\$]*)\s*[:=]\s*(?P<value>.*)/i',$cm,$matches);
+		//save tag
+		if(!empty($matches['tag']) || $i==$rows){
+			if(empty($tag))$tag = 'desc';
+			if(empty($anno[$tag]))
+				$anno[$tag] = [];
+			$anno[$tag] []= ['value'=>join('\n', $value),'attr'=>$attr];
+			$tag = null; $value=[]; $attr = null;
+		}
+		//new tag
+		if(!empty($matches['tag'])){
+			$tag = trim(strtolower($matches['tag'][0]));
+			$value []= trim($matches['value'][0]);
+			$attr = $matches['attr'][0];
+		}else if(!empty($cm)){
+			$value []= $cm;
+		}
+	}
+	foreach ($anno as $key=>$vs){
+		if(count($vs)==1) $anno[$key] = $vs[0]['value'];
+	}
+	return $anno;
+}
+
+/**
+ * get source tree of php file, auto include
+ * @param $phpfile: php file full path
+ * @example:
+ * 	fs_src_tree("/tmp/test.php");
+ * 	//result will be something like this
+ * 	Array(
+ * 		"annotations"	=> [...] //file comment annotations
+ * 		"functions" => [ 	//non-class functions
+ * 			"func1" => ["annotations"=>[...], "params"=>[...]],
+ * 			"func2" => ["annotations"=>[...], "params"=>[...]],
+ * 		],
+ * 		"classes"	=> [
+ * 			"annotations"=>[...],
+ * 			"properties"=>[
+ * 				"prop1"	=> [public=>1, protected=>0, private=>0, static=>1],
+ * 				"prop2"	=> [public=>1, protected=>0, private=>0, static=>0],
+ * 			],
+ * 			"methods"=>[
+ * 				"method1" => [public=>1, protected=>0, private=>0, static=>1, abstract=>0, annotations=>[...], params=>[...]],
+ * 				...
+ * 			],
+ * 		]
+ * 	)
+ */
+function fs_src_tree($phpfile){
+	$src = file_get_contents($phpfile);
+	require_once $phpfile;
+	//file comment
+	preg_match_all('/<\?php\s*\/\*+\s*(?P<comment>.*?)\*\/\s*/sm', $src, $fdef);
+	$comment = $fdef["comment"][0];
+	//classes
+	preg_match_all('/^(abstract)*\s*(class|trait)\s+(?P<cls>[\w\d]+)\s*/mi', $src, $ma);
+	$classes = [];
+	if(!empty($ma['cls'])){
+		foreach ($ma['cls'] as $cls){
+			$classes[$cls] =[];
+			$cr = new ReflectionClass($cls);
+			//parent
+			$parent = $cr->getParentClass();
+			if($parent) $classes[$cls]['parent']=$parent->getName();
+			//interfaces
+			$classes[$cls]['interfaces']=$cr->getInterfaceNames();
+			//abstract
+			$classes[$cls]['abstract']=$cr->isAbstract();
+			//trait
+			$classes[$cls]['trait']=$cr->isTrait();
+			//class annotations
+			$comm = $cr->getDocComment();
+			if($comm==$comment) $comment="";
+			$classes[$cls]['annotations']=fs_annotations($comm);
+			//methods
+			$methods = $cr->getMethods();
+			foreach ($methods as $mr){
+				$args = array_map(function($e){return $e->name;}, $mr->getParameters());
+				$anno = fs_annotations($mr->getDocComment());
+				$classes[$cls]["methods"][$mr->getName()] = [
+				'annotations'=>$anno, 'params'=>$args,
+				'abstract' => $mr->isAbstract(),
+				'constructor' => $mr->isConstructor(),
+				'destructor' => $mr->isDestructor(),
+				'final' => $mr->isFinal(),
+				'private' => $mr->isPrivate(),
+				'protected' => $mr->isProtected(),
+				'public' => $mr->isPublic(),
+				'static' => $mr->isStatic()
+				];
+			}
+			//properties
+			$props = $cr->getProperties();
+			foreach ($props as $pr){
+				$classes[$cls]["properties"][$pr->getName()] = [
+				'private' => $mr->isPrivate(),
+				'protected' => $mr->isProtected(),
+				'public' => $mr->isPublic(),
+				'static' => $mr->isStatic()
+				];
+			}
+		}
+	}
+	//non-class functions
+	preg_match_all('/^function\s+(?P<func>[\w\d_]+)\s*\(/mi', $src, $ma);
+	$funcs = [];
+	if(!empty($ma['func'])){
+		foreach ($ma['func'] as $fn){
+			$ref = new ReflectionFunction($fn);
+			$args = array_map(function($e){return $e->name;}, $ref->getParameters());
+			$comm = $ref->getDocComment();
+			if($comm==$comment) $comment="";
+			$anno = fs_annotations($comm);
+			$funcs[$fn] = ['annotations'=>$anno, 'params'=>$args];
+		}
+	}
+	return ['annotations' => empty($comment)?[]:fs_annotations($comment),'functions' => $funcs,'classes' => $classes];
+}

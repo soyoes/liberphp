@@ -5,96 +5,54 @@
  *	@uses: Core functions of dispatching, rendering.
  *****************************************************************************/
 
-class Consts{
-	/*------------ APP Configuration Begin ---------------------------------*/
-	static $lang 				= "jp";
-	static $image_host 			= null;
-	static $default_controller	= "top";
-	static $default_action		= null;
+class Consts extends Conf{
 	
-	static $db_engine			= "mysql";
-	static $db_host				= "127.0.0.1";
-	static $db_port				= "3306";
-	static $db_name				= "todos";
-	static $db_user				= "root";
-	static $db_pass				= "root";
-	
-	static $cache_hosts			= "localhost";
-	static $cache_port			= "11211";
-	
-	//set this to false when you deploy.
-	static $template_check		= true;		
-	
-	static $test_mode_enable 	= true;
-	
-	static $session_enable		= true;
-	static $session_lifetime	= 86400;
-	
-	
-	static $filters				= [];
-	
-	static $oauth_clients 		= [];
-	
-	static $schema_reg			= "regAt";
-	static $schema_upd			= "updAt";
-	//auth
-	static $schema_user_table	= "users";	
-	static $schema_user_id		= "id";		
-	static $schema_user_email	= "email";	
-	static $schema_user_pass	= "pass";	
-	static $schema_user_activated	= "activated";	
-	
-	
-	
-	
-	/*------------ APP Configuration End ----------------------------------*/
-	
-	static $db_regexp_op = ["mysql"=>"REGEXP","postgres"=>"~"];
+	static $db_regexp_op = ['mysql'=>'REGEXP','postgres'=>'~'];
 	
 	static $db_query_filters;
 	
 	static $arr_query_filters;
 	
 	static $query_filter_names = [
-		"eq" 	=> "=",
-		"ne" 	=> "!",
-		"lt" 	=> "<",
-		"gt"	=> ">",
-		"le" 	=> "<=",
-		"ge"	=> ">=",
-		"in"	=> "[]",
-		"nin" 	=> "![]",
-		"bt" 	=> "()",
-		"nb" 	=> "()",
-		"l" 	=> "?",
-		"nl" 	=> "!?",
-		"m" 	=> "~",
-		"nm" 	=> "!~",
-		"mi" 	=> "~~",
-		"nmi" 	=> "!~~"
+		'eq' 	=> '=',
+		'ne' 	=> '!',
+		'lt' 	=> '<',
+		'gt'	=> '>',
+		'le' 	=> '<=',
+		'ge'	=> '>=',
+		'in'	=> '[]',
+		'nin' 	=> '![]',
+		'bt' 	=> '()',
+		'nb' 	=> '()',
+		'l' 	=> '?',
+		'nl' 	=> '!?',
+		'm' 	=> '~',
+		'nm' 	=> '!~',
+		'mi' 	=> '~~',
+		'nmi' 	=> '!~~'
 	];
 	
 	static $error_codes = [
-		"200"=>"OK",
-		"201"=>"Created",
-		"202"=>"Accepted",
-		"204"=>"No Content",
-		"301"=>"Moved Permanently",
-		"302"=>"Found",
-		"400"=>"Bad Request",
-		"401"=>"Unauthorized",
-		"403"=>"Forbidden",
-		"404"=>"Not Found",
-		"413"=>"Request Entity Too Large",
-		"414"=>"Request-URI Too Large",
-		"415"=>"Unsupported Media Type",
-		"419"=>"Authentication Timeout",
-		"500"=>"Internal Server Error",
-		"501"=>"Not Implemented"];
+		'200'=>'OK',
+		'201'=>'Created',
+		'202'=>'Accepted',
+		'204'=>'No Content',
+		'301'=>'Moved Permanently',
+		'302'=>'Found',
+		'400'=>'Bad Request',
+		'401'=>'Unauthorized',
+		'403'=>'Forbidden',
+		'404'=>'Not Found',
+		'413'=>'Request Entity Too Large',
+		'414'=>'Request-URI Too Large',
+		'415'=>'Unsupported Media Type',
+		'419'=>'Authentication Timeout',
+		'500'=>'Internal Server Error',
+		'501'=>'Not Implemented'];
 	
 	static function init(){
 		self::$db_engine = strtolower(self::$db_engine);
-		if(empty(self::$default_action)) self::$default_action = strtolower($_SERVER["REQUEST_METHOD"]);
+		if(empty(self::$default_action)) self::$default_action = strtolower($_SERVER['REQUEST_METHOD']);
 	}
 }
 
@@ -111,8 +69,8 @@ function assign($key, $value){
 
 function render($arg1=false, $arg2=false){
 	switch(REQ::getInstance()->getFormat()){
-		case "json":return render_json($arg1);
-		case "text":return render_text($arg1);
+		case 'json':return render_json($arg1);
+		case 'text':return render_text($arg1);
 		default:return render_html($arg1,$arg2);			
 	}
 }
@@ -120,46 +78,46 @@ function render($arg1=false, $arg2=false){
 function render_html($templateName=null, $datas=array()){
 	$req = REQ::getInstance();
 	list($render,$render_layout) = [$req->getRender(), $req->getRenderLayout()];
-	$appName = str_has($req->getURI(),"/".APP_NAME."/")?"/".APP_NAME:"";
+	$appName = str_has($req->getURI(),'/'.APP_NAME.'/')?'/'.APP_NAME:'';
 	$render->assign('TITLE',APP_NAME);
 	header('Content-type: text/html; charset=UTF-8');
 	if (!isset($templateName))
-		$templateName = $req->getController()."_".$req->getAction().".html";
-	if(!str_ends($templateName, ".html"))
-		$templateName .= ".html";
+		$templateName = $req->getController().'_'.$req->getAction().'.html';
+	if(!str_ends($templateName, '.html'))
+		$templateName .= '.html';
 	$render->render($templateName,$datas,$render_layout);
-	$req->setResponseBody("true");
-	if(isset($_REQUEST["after_wrapper"]))
+	$req->setResponseBody('true');
+	if(isset($_REQUEST['after_wrapper']))
 		after_wrapper($req->getParams());
 }
 
-function render_json($data,$code="200"){
+function render_json($data){
 	$body = json_encode($data);
 	header('Content-type: application/json; charset=UTF-8');
 	REQ::getInstance()->setResponseBody(json_encode($data));
-	REQ::write($body,"json");
+	REQ::write($body,'json');
 }
 
-function render_text($text,$code="200"){
+function render_text($text){
 	header('Content-type: text/plain; charset=UTF-8');
 	REQ::getInstance()->setResponseBody($text);
-	REQ::write($text,"text");
+	REQ::write($text,'text');
 }
 
 function render_default_template(){
-	$path = APP_DIR.__SLASH__."views".__SLASH__.REQ::getTemplateType();
+	$path = APP_DIR.__SLASH__.'views'.__SLASH__.REQ::getTemplateType();
 	$req = REQ::getInstance();
 	$ns = $req->getNamespace();
-	if($ns!=""){
-		$path .= "/".str_replace(".","/",$ns);
+	if($ns!=''){
+		$path .= '/'.str_replace('.','/',$ns);
 	}
 	$template_file = $req->getController().'_'.$req->getAction().'.html';
 	//error_log($path."/".$template_file);
-	if(file_exists($path."/".$template_file)){//FIXME check APC instead
+	if(file_exists($path.'/'.$template_file)){//FIXME check APC instead
 		render_html($template_file);
 	}else{
 		//show error page?
-		error(400,"json","action does not exist ");
+		error(400,'json','action does not exist.');
 	}
 	REQ::quit();
 }
@@ -225,19 +183,19 @@ function redirect($url,$clientRedirect=false) {
 function call($url, $method, array $data, array $options=array()){
 	$method = strtoupper($method);
 	$defaults = $method == "POST" || $method == "PUT" ?
-	[	CURLOPT_POST => 1,
-		CURLOPT_HEADER => 0,
-		CURLOPT_URL => $url,
-		CURLOPT_FRESH_CONNECT => 1,
-		CURLOPT_RETURNTRANSFER => 1,
-		CURLOPT_FORBID_REUSE => 1,
-		CURLOPT_TIMEOUT => 4,
-		CURLOPT_POSTFIELDS => http_build_query($data)
+	[	'CURLOPT_POST' 				=> 1,
+		'CURLOPT_HEADER' 			=> 0,
+		'CURLOPT_URL' 				=> $url,
+		'CURLOPT_FRESH_CONNECT' 	=> 1,
+		'CURLOPT_RETURNTRANSFER'	=> 1,
+		'CURLOPT_FORBID_REUSE' 		=> 1,
+		'CURLOPT_TIMEOUT' 			=> 4,
+		'CURLOPT_POSTFIELDS' 		=> http_build_query($data)
 	]:[
-		CURLOPT_URL => $url. (strpos($url, '?') === FALSE ? '?' : ''). http_build_query($data),
-		CURLOPT_HEADER => 0,
-		CURLOPT_RETURNTRANSFER => TRUE,
-		CURLOPT_TIMEOUT => 4
+		'CURLOPT_URL' 		=> $url. (strpos($url, '?') === FALSE ? '?' : ''). http_build_query($data),
+		'CURLOPT_HEADER'	=> 0,
+		'CURLOPT_RETURNTRANSFER' => TRUE,
+		'CURLOPT_TIMEOUT'	=> 4
 	];
 	$ch = curl_init();
 	curl_setopt_array($ch, ($options + $defaults));
@@ -318,10 +276,10 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 		}
 		$params = $params;
 		$rest = parse_rest_uri($uri, $method, $params);
-		return [uri=>$uri, method=>$method, params=>$params, format=>($specifiedFmt)?$format:false] + $rest;
+		return ['uri'=>$uri, 'method'=>$method, 'params'=>$params, 'format'=>($specifiedFmt)?$format:false] + $rest;
 	}else{//static
 		$uri = "/webroot".$uri.".$ext";
-		return [uri=>$uri, method=>$method, params=>$params, 'static'=>true];
+		return ['uri'=>$uri, 'method'=>$method, 'params'=>$params, 'static'=>true];
 	}
 }
 
@@ -371,6 +329,8 @@ function parse_rest_uri($uri, $method, &$params){
 			if(in_array($uri,$resources["schemas"])){
 				$controller = "@REST";
 				$res["schema_name"] = $uri;
+				$schemaDef =db_schema($uri);
+				$res["schema_def"] = $schemaDef;
 				$action = $method;
 			}
 		}else if(in_array(REQ::getClientType()."/".join("_",$uparts), $resources["views"])){//has view template file
@@ -477,7 +437,7 @@ class REQ {
 		self::$client_bot = $ua["bot"];
 		$req->data = parse_uri($uri, $method, $params, $ua);
 		$req->params = $req->data["params"];
-	
+		
 		if(Consts::$session_enable && !isset($_SESSION))
 			Session::start();
 		//var_dump($req->data);
@@ -503,18 +463,12 @@ class REQ {
 		self::$resources = cache_get("APP_RESOURCES", function($key){
 			$ctrldir = APP_DIR.__SLASH__."controllers";
 			exec("find $ctrldir",$res);
-			$auths = []; $namespaces = []; $controllers = [];
+			$namespaces = []; $controllers = [];
 			foreach($res as $f){
 				$namespaces []= strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\/(.*)\.inc$/',"/^\//"],["","",""], $f));
-				$ctl = strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\.inc$/',"/^\//"],["","",""], $f));
-				$controllers[]= $ctl;
 				if(str_ends($f,".inc")){
-					$ct = file_get_contents($f);
-					preg_match('/^\$auth_action\s*=\s*["\']*(?P<func>[\w,_\d\*\s]*)/m',$ct, $authDef);
-					if(!empty($authDef)){
-						$auths[$ctl] = $authDef['func'];
-						$authDef = null;
-					}else{$auths[$ctl]=null;}
+					$ctl = strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\.inc$/',"/^\//"],["","",""], $f));
+					$controllers[]= $ctl;
 				}
 			}
 			$schemadir = APP_DIR.__SLASH__."conf".__SLASH__."schemas";
@@ -531,7 +485,7 @@ class REQ {
 			return [
 			"namespaces" 	=> ds_remove(array_unique($namespaces), ""),
 			"controllers" 	=> ds_remove(array_unique($controllers), ""),
-			"auths"			=> $auths,
+			//"permission"	=> $permission, permission will be loaded in Auth::checkPermission
 			"schemas"		=> ds_remove($schemas, ""),
 			"views"			=> ds_remove($views, ["","pc","sm","bot","ibot","pad","mail"]),
 			"view_types"	=> array_map(function($e){
@@ -596,6 +550,8 @@ class REQ {
 	function getAction(){return $this->data["action"];}
 	function getFormat(){return $this->data["format"];}
 	function getURI(){return $this->data["uri"];}
+	function getMethod(){return $this->data["method"];}
+	function getData($key){return empty($this->data)?null:$this->data[$key];}
 	
 	
 	function setResponseBody($body){if(isset($body) && is_string($body))$this->response_body=$body;}
@@ -612,9 +568,9 @@ class REQ {
 			$size = count($filterNames);
 			$filterCls = [];
 			$data = $this->data;
-			$authDef = self::load_resources()['auths'][$data["controller"]];
 			
-			$authRequired = (isset($authDef) && preg_match('/(\b'.$data["action"].'\b)/g', $authDef)) || "*"===$authDef;
+			$auth = Auth::checkPermission($this);
+			if(!$auth) return error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
 			
 			for ($token=$size*(-1); $token<=$size; $token++){
 				if(true===$this->interrupted)
@@ -700,10 +656,6 @@ class REQ {
 		}
 	}
 
-	function clean(){
-		unset($this->params);
-		$this->params = [];
-	}
 	
 	/**
 	 * Controller function, Process RESTful requests (without controller definations).
@@ -711,21 +663,16 @@ class REQ {
 	 */
 	private function process_rest(){
 		$schema = $this->data["schema_name"];
-		//check filter
+		//check filter, TODO move this to delegate folder
 		$file = APP_DIR.__SLASH__."restful".__SLASH__.$schema.".inc";
 		if(file_exists($file)) require_once $file;
-		$schemaDef =db_schema($schema);
+		$schemaDef =$this->data["schema_def"];
 		$method = strtolower($_SERVER["REQUEST_METHOD"]);
-		$restful =  strtolower($schemaDef["general"]["restful"]?$schemaDef["general"]["restful"]:"");
-		if(!empty($resful) && $restful!="all" && !str_has($restful, $method)){
-			//not permit restful on this schema
-			return error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
-		}
-		
 		$pk = $schemaDef["general"]["pk"];
 		$params = $this->params;
 		if(isset($params[$pk]) && !isset($params["@id"]))
 			$params["@id"] = $params[$pk];
+		//FIXME : change delegate name
 		$delegate = "rest_".$schema."_".$this->data["action"];
 		if(!function_exists($delegate)){
 			switch(strtolower($_SERVER["REQUEST_METHOD"])){

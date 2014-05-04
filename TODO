@@ -1,7 +1,16 @@
+OK : split Consts to conf.inc
+	
+# TODO : restful permission 
 
+
+-------------
+# : render
+
+	assign template_name
+	render customize tag
+	
 
 # : add 2nd parameter $authRequired  to Filters' document  
-# : update document about RESTful conf in schema.ini
 
 
 OK : Render get HTML code. OR include multiple php file *****
@@ -20,12 +29,7 @@ OK : let T to load from ini instead of json
 -------------
 # : add delegate folder , SessionDelegate, RestfulDelegate,  RenderDelegate
 # : add default empty delegate file via installer
--------------
-# : render
-	
-	assign template_name
-	render customize tag
-	
+
 		
 -----------
 # : test render.<page>

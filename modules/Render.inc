@@ -188,7 +188,7 @@ class Render {
 	 		// 0 means nothing/blank/...
 	 * */
 	static function paginate($page,$total,$opts=['perPage'=>20]){
-		$pp = ($opts[perPage]>0)? $opts[perPage]: 20;
+		$pp = ($opts['perPage']>0)? $opts['perPage']: 20;
 		$pi = $opts['items']?$opts['items']:9; 
 		$ptt = ceil($total/$pp); $half=floor($pi/2);
 		$pages = []; $begin = max(1,$pp-$half); $end = min($ptt, $pp+$half);

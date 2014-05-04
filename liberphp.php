@@ -38,6 +38,7 @@ function create(){
 	build($proj);
 	//exec("cp init.inc ../$proj/");
 	exec("mv liber.php ../$proj/");
+	exec("cp modules/Conf.inc ../$proj/conf/conf.inc");
 	exec("chmod +x ../$proj/liber.php");
 	//exec("sed -i -e 's:/*__APP_NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/liber.php");
 	
@@ -68,7 +69,7 @@ Your project is created under $path
 
 # 3) DB migration (Option)
 > cd ../$proj
-> ./liber.php migrate
+> php liber.php migrate
 
 # 4)  Restart your apache
 		
@@ -90,6 +91,7 @@ function build($appName=null){
  *	@file: liber.php
  *	@author: Soyoes 2014/01/28
  *****************************************************************************/
+require 'conf/conf.inc';
 const APP_NAME = '$appName';
 const LIBER_DIR = '$pwd';
 const __SLASH__ = DIRECTORY_SEPARATOR;
