@@ -36,7 +36,28 @@ class Conf{
 	static $schema_user_pass	= "pass";
 	static $schema_user_activated	= "activated";
 	
-	//Permission
-	static $auth_group_name = "auth_group";
-	static $auth_user_name = "auth_user";
+	/*Auth & permissions*/
+	static $auth_group_name 	= "auth_group"; //session key to save auth group id
+	static $auth_user_id_name 	= "auth_user_id";	//session key to save auth user id
+	static $auth_user_data_name = "auth_user";	//session key to save auth user data
+	static $auth_patterns = [
+		'/user/login' 	=> [
+			'schema'=>'users', 	
+			'group'=>1, 
+			'fields.email'=>'email', 
+			'fields.pass'=>'pass'
+		],
+		'/vip/login' 	=> [
+			'schema'=>'vips', 	
+			'group'=>2, 
+			'fields.email'=>'email', 
+			'fields.pass'=>'pass'
+		],
+		'/admin/login' 	=> [
+			'schema'=>'admins', 
+			'group'=>3, 
+			'fields.email'=>'email', 
+			'fields.pass'=>'pass'
+		],
+	];
 }
