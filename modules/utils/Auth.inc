@@ -34,7 +34,7 @@ class Auth{
 	 * 1st : permission of guest group default=8 (read only)
 	 * Nth : permission of Nth auth group (N = Auth::getAuthGroup()["group"]). default = F (all permission)
 	 * 
-	 * @return : true=OK, false=not permited
+	 * @return : 200=OK, 401=Unauthorized, 403=Forbidden
 	 * 
 	 * */
 	static public function checkPermission(REQ $req){
@@ -66,10 +66,11 @@ class Auth{
 		}
 		
 		$bits = !isset($permission)?($auth["group"]==0?"8":"F"): $permission[$auth["group"]];//bits is hex string (len=1)
-		if($bits=="0")return false;
+		if($bits=="0") return $auth["group"]==0? 401 : 403;
 		$bits = base_convert($bits, 16, 2);//int -> 4 bit binary string
 		$bitIdx = array_search($req->getMethod(), ['get','post','put','delete']);
-		return $bits[$bitIdx]=="1"?true:false;//0 OR 1
+		if($bits[$bitIdx]!="1") return $auth["group"]==0? 401 : 403;
+		return 200;
 	}
 
 	static public function getAuthGroup(){
@@ -94,7 +95,7 @@ class Auth{
 		if(empty($p) || empty($schemaDef)){
 			return ['error'=>-1];
 		}
-		$r = AuthDelegate::login($p["schema"],$req->params);
+		$r = AuthDelegate::login($p ,$req->params);
 		if($r["error"]){ return ["error"=>$r["error"]];}
 		$pk = $schemaDef['general']['pk'];
 		$_SESSION[Consts::$auth_group_name] = $p["group"];

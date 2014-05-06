@@ -570,7 +570,10 @@ class REQ {
 			$data = $this->data;
 			
 			$auth = Auth::checkPermission($this);
-			if(!$auth) return error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
+			if($auth != 200){
+				if($auth == 401)  return error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
+				if($auth == 403)  return error(403);
+			}
 			
 			for ($token=$size*(-1); $token<=$size; $token++){
 				if(true===$this->interrupted)
