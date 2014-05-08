@@ -83,7 +83,8 @@ EOF;
 function build($appName=null){
 	global $pwd,$args;
 	$cliName = array_shift($args);
-	$appName = $appName | $cliName | "__APP_NAME__";
+	if(empty($appName)) $appName = $cliName;
+	if(empty($appName)) $appName = "__APP_NAME__";
 	//$files = glob($pwd."/modules/*.inc");
 	$out = <<< EOF
 <?php
