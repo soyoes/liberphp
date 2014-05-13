@@ -1,6 +1,6 @@
 <?php
 
-class Oauth {
+class OAuth {
     
     protected $_client_id;
     protected $_client_secret;
@@ -17,20 +17,47 @@ class Oauth {
     protected $_access_token_url;
     protected $_request_token_url;
     
-    public function __construct($client_id, $client_secret, $callback) {
-        $this->_client_id = $client_id;
-        $this->_client_secret = $client_secret;
-        $this->_callback = $callback;
+    protected function __construct($params) {
+        $this->_client_id = $params['id'];
+        $this->_client_secret = $params['secret'];
+        $this->_callback = $params['callback'];
+        if (isset($params['scope'])) {
+            $this->_scope = $params['scope'];
+        }
+    }
+
+    public static function getInstance($platform) {
+        $scheme = OAuth::url_scheme();
+        $port = $_SERVER['SERVER_PORT'];
+        // load params from conf.inc
+        // id, secret are necessary
+        $params = Conf::$oauth[$platform];
+
+        if (!isset($params) || !isset($params['id']) || !isset($params['secret']) || !class_exists($platform))
+            return false;
+        
+        // fix port
+        if( $scheme == "https" && $port == 443 || $scheme == "http" && $port == 80 ) {
+            $port = "";
+        } else { $port = ":" . $port; }
+
+        $params['callback'] = "$scheme://$_SERVER[HTTP_HOST]$port/oauth/callback?platform=$platform";
+        return new $platform($params);
     }
     
+    private static function url_scheme() {
+        /* apache */
+        if (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1)) return 'https';
+        /* nginx */
+        if (isset($_SERVER['SERVER_PORT']) && ($_SERVER['SERVER_PORT'] === '443')) return 'https';
+        
+        return "http";
+    }
+
     public function setAccessToken($access_token, $access_token_secret = null, $expires = null) {
         $this->_access_token = $access_token;
         $this->_access_token_secret = $access_token_secret;
         $this->_expires = $expires;
-    }
-    
-    public function setScope(Array $scope) {
-        $this->_scope = $scope;
     }
     
     public function makeRequest($url, Array $parameters = array(), $method = 'GET', $returnType = 'json', $includeCallback = false, $includeVerifier = false) {
@@ -44,7 +71,7 @@ class Oauth {
 
         // set oauth headers for oauth 1.0
         if(isset($this->_request_token_url) && strlen($this->_request_token_url) > 0) {
-            $headers = $this->getOauthHeaders($includeCallback);
+            $headers = $this->getOAuthHeaders($includeCallback);
             if($includeVerifier && isset($_GET['oauth_verifier'])) {
                 $headers['oauth_verifier'] = $_GET['oauth_verifier'];
             }
@@ -212,7 +239,7 @@ class Oauth {
         
         // add the token to the session
         // FIXME 第二个参数，不同平台返回的值是不同的，可能需要重载（处理过期问题）
-        if(isset($params[$values[0]]) && isset($params[$values[1]])) {
+        if(isset($params[$values[0]])) {
             $_SESSION[$this->_prefix]['access_token'] = $params[$values[0]];
             if(isset($this->_request_token_url) && strlen($this->_request_token_url) > 0) {
                 $_SESSION[$this->_prefix]['access_token_secret'] = $params[$values[1]];
@@ -277,7 +304,7 @@ class Oauth {
         return $composite_key;
     }
     
-    private function getOauthHeaders($includeCallback = false) {
+    private function getOAuthHeaders($includeCallback = false) {
         $oauth = array(
             'oauth_consumer_key' => $this->_client_id,
             'oauth_nonce' => time(),
@@ -317,7 +344,7 @@ class Oauth {
     
 }
 
-class Facebook extends Oauth {
+class Facebook extends OAuth {
     // app: https://developers.facebook.com/
     // api: https://developers.facebook.com/docs/
         
@@ -327,7 +354,7 @@ class Facebook extends Oauth {
         
 }
 
-class Google extends Oauth {
+class Google extends OAuth {
     // app: https://console.developers.google.com/project
     // api: https://developers.google.com/accounts/docs/OAuth2WebServer
         
@@ -345,7 +372,7 @@ class Google extends Oauth {
         
 }
 
-class StackExchange extends Oauth {
+class StackExchange extends OAuth {
     // app: http://stackapps.com/apps/oauth
     // api: https://api.stackexchange.com/docs
 
@@ -354,9 +381,9 @@ class StackExchange extends Oauth {
     protected $_access_token_url = 'https://stackexchange.com/oauth/access_token';
     protected $_key = '';
 
-    public function __construct($client_id, $client_secret, $callback, $key) {
-        $this->_key = $key;
-        parent::__construct($client_id, $client_secret, $callback);
+    protected function __construct($params) {
+        $this->_key = isset($params['key']) ? $params['key'] : "";
+        parent::__construct($params);
     }
 
     protected function requestAccessToken() {
@@ -372,7 +399,7 @@ class StackExchange extends Oauth {
 
 }
 
-class GitHub extends Oauth {
+class GitHub extends OAuth {
     // app: https://github.com/settings/applications
     // api: https://developer.github.com/v3/oauth/
         
@@ -381,9 +408,9 @@ class GitHub extends Oauth {
     protected $_access_token_url = 'https://github.com/login/oauth/access_token';
     protected $_app_name = '';
 
-    public function __construct($client_id, $client_secret, $callback, $app_name) {
-        $this->_app_name = $app_name;
-        parent::__construct($client_id, $client_secret, $callback);
+    protected function __construct($params) {
+        $this->_app_name = isset($params['appname']) ? $params['appname'] : $params['id'];
+        parent::__construct($params);
     }
     
     protected function requestAccessToken() {
@@ -396,7 +423,7 @@ class GitHub extends Oauth {
 
 }
 
-class LinkedIn extends Oauth {
+class LinkedIn extends OAuth {
     // app: https://www.linkedin.com/secure/developer
     // api: https://developer.linkedin.com/apis
         
@@ -421,7 +448,7 @@ class LinkedIn extends Oauth {
 
 }
 
-class Weibo extends Oauth {
+class Weibo extends OAuth {
     // oauth: http://open.weibo.com/wiki/%E6%8E%88%E6%9D%83%E6%9C%BA%E5%88%B6
     // api: http://open.weibo.com/wiki/%E5%BE%AE%E5%8D%9AAPI
     // app: http://open.weibo.com/webmaster
@@ -435,7 +462,7 @@ class Weibo extends Oauth {
     }
 }
 
-class Twitter extends Oauth {
+class Twitter extends OAuth {
     // app: https://apps.twitter.com/
     // api: https://dev.twitter.com/docs
 
