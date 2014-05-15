@@ -259,6 +259,19 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	$uri = preg_replace(['/\sHTTP.*/','/(\/)+/','/\/$/','/^[a-zA-Z0-9]/'], ['',"/","","/$1"], $uri);
 	$parts = parse_url("http://".$host.$uri);
 	$uri = $parts["path"];
+	
+	//check prefix
+	$prefix = empty(Consts::$path_prefix)?"":"/".preg_replace('/(^\/|\/$)/','',Consts::$path_prefix);
+	if(!empty($prefix)){
+		if($uri!=$prefix && !str_starts($uri, $prefix."/")){
+			//it is a customized path or path not exists
+			//$uri = file_exists("PathDelegate")? PathDelegate::rewriteURI($uri) : false;
+			$uri = PathDelegate::rewriteURI($uri);
+			if(!$uri || ($uri!=$prefix && !str_starts($uri, $prefix."/"))) return error(400);
+		}
+		$uri = preg_replace('/^\\'.$prefix.'/','', $uri); 	
+	}
+	
 	$fmts = ['json','bson','text','html','csv'];
 	if(isset($parts["query"]))
 		parse_str($parts["query"],$params);

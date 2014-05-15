@@ -4,6 +4,8 @@ class Conf{
 	static $image_host 			= null;
 	static $default_controller	= "top";
 	static $default_action		= null;
+	//custom path prefix of each request 
+	static $path_prefix			= "";
 	
 	static $db_engine			= "mysql";
 	static $db_host				= "127.0.0.1";
