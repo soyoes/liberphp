@@ -679,18 +679,14 @@ class REQ {
 	 */
 	private function process_rest(){
 		$schema = $this->data["schema_name"];
-		//check filter, TODO move this to delegate folder
-		$file = APP_DIR.__SLASH__."restful".__SLASH__.$schema.".inc";
-		if(file_exists($file)) require_once $file;
 		$schemaDef =$this->data["schema_def"];
 		$method = strtolower($_SERVER["REQUEST_METHOD"]);
 		$pk = $schemaDef["general"]["pk"];
 		$params = $this->params;
 		if(isset($params[$pk]) && !isset($params["@id"]))
 			$params["@id"] = $params[$pk];
-		//FIXME : change delegate name
-		$delegate = "rest_".$schema."_".$this->data["action"];
-		if(!function_exists($delegate)){
+		$delegate_name = $schema."_".$this->data["action"];  
+		if(!method_exists("RestfulDelegate", $delegate_name)){
 			switch(strtolower($_SERVER["REQUEST_METHOD"])){
 				case "get"	:return $this->rest_get($schema,$params);
 				case "post"	:return $this->rest_post($schema,$params);
@@ -699,7 +695,7 @@ class REQ {
 				default : return error(401,"RESTful ERROR : Sorry, You are not permited to do that.");
 			}
 		}else{
-			$re  = $delegate($schema, $params);
+			$re = call_user_func(["RestfulDelegate", $delegate_name]);
 			if(!$re) error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
 		}
 	}
