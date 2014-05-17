@@ -659,8 +659,7 @@ class REQ {
 
 			if(function_exists($action)){//normal request
 				$exec($action);
-			}else if(str_starts($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
-				//self::$interrupted = true;
+			}else if(Consts::$mode=="Developing" && str_starts($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
 				self::$test_mode = true;
 				return Tests::run($data["controller"],str_replace("test_","",$action));
 			}else{//no action

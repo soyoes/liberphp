@@ -1,5 +1,9 @@
 <?php
 class Conf{
+	//change this to mode : false will close Test, Render will use cache under /tmp instead of compile every time.
+	//available modes : Developing | Product | Maintenance 
+	static $mode 				= "Developing";
+	
 	static $lang 				= "jp";
 	static $image_host 			= null;
 	static $default_controller	= "top";
@@ -16,11 +20,6 @@ class Conf{
 	
 	static $cache_hosts			= "localhost";
 	static $cache_port			= "11211";
-	
-	static $template_check		= true;
-	
-	//FIXME change this to mode : developing | product
-	static $test_mode_enable 	= true;
 	
 	static $session_enable		= true;
 	static $session_lifetime	= 86400;

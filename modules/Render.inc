@@ -9,8 +9,6 @@
 
 /**
  * TODO solve <script> <style> without {ignore}
- * TODO text locale
- * TODO CSS
  * 
  * TODO add custome tags like <liber::pages>
  * 
@@ -97,7 +95,7 @@ class Render {
 		$prefix  = 'template-' . REQ::getTemplateType() . '-';
 		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
 		if(!file_exists($outpath)
-			||(Consts::$template_check && filemtime($filepath) > filemtime($outpath))){
+			||(Consts::$mode=="Developing" && filemtime($filepath) > filemtime($outpath))){
 			$code = $this->compile($filepath);
 			if(isset($code) && $code!=""){
 				file_put_contents($outpath,$code);
@@ -112,9 +110,21 @@ class Render {
 		$phpcode = '';
 		$indent = 0;
 		$ignore = false;
+		//CustomTag get user tags from delegate
+		$delegate_methods = get_class_methods('RenderDelegate');
+		$custom_tags = [];
+		foreach ($delegate_methods as $m) 
+			if(str_starts($m,'tag_'))
+				$custom_tags []= preg_replace('/^tag_/','',$m);
+		
+		//CustomTag make regex compression
+		$tags_regexp = (!empty($custom_tags)) ?
+			"(%|=|if|elseif|else|break|ignore|for|var|include|".join('|',$custom_tags).")":
+			"(%|=|if|elseif|else|break|ignore|for|var|include)";
+		
 		while($code = array_shift($rows)){
 			$matched = false;
-			preg_match_all('/\{(?P<close>\/*)(?P<tag>(%|=|if|elseif|else|break|ignore|for|var|include){0,1})\s*(?P<val>.*)\}/', $code, $matches);
+			preg_match_all('/\{(?P<close>\/*)(?P<tag>'.$tags_regexp.'{0,1})\s*(?P<val>.*)\}/', $code, $matches);
 			
 			if(empty($matches[0])){
 				$phpcode .= $code;
@@ -132,6 +142,10 @@ class Render {
 						$phpcode .= '<?php } ?>';
 					}
 				}else if($ignore){
+					$phpcode .= $code;
+				}else if(!empty($custom_tags)&&in_array($tag, $custom_tags)){
+					//custom tags
+					$code = call_user_func(["RenderDelegate","tag_".$tag],$val,$this->data);
 					$phpcode .= $code;
 				}else{
 					switch($tag){
@@ -167,7 +181,6 @@ class Render {
 							$ignore = true;
 							break;
 						default:
-							
 							break;
 					}//end switch
 				}//end else
@@ -183,7 +196,7 @@ class Render {
 	 * @param opts: assoc-array (paginate options), perPage|items
 	 * @return : array of page index numbers. (starts with 1)
 	 * @example : 
-	 * 		Render::paginate(11,100);
+	 * 		Render::paginate(11,1000);
 	 		// result :{pages:[1,0,7,8,9,10,11,12,13,14,15,0,100], cursor:6}
 	 		// 0 means nothing/blank/...
 	 * */
@@ -191,15 +204,32 @@ class Render {
 		$pp = ($opts['perPage']>0)? $opts['perPage']: 20;
 		$pi = $opts['items']?$opts['items']:9; 
 		$ptt = ceil($total/$pp); $half=floor($pi/2);
-		$pages = []; $begin = max(1,$pp-$half); $end = min($ptt, $pp+$half);
+		$pages = []; $begin = max(1,$page-$half); $end = min($ptt, $page+$half);
 		$cursor = 0;
 		for($i=$begin;$i<=$end;$i++){
 			$pages[]=$i;
 			if($i<$page) $cursor++;
 		}
-		if($begin>2) {$pages = [1,0]+$pages; $cursor+=2;} 
+		if($begin>2) {
+			$b = $begin;
+			while(count($pages)<$pi-2 && $b>2){
+				array_unshift($pages,--$b);$cursor++;
+			}
+			if(count($pages)>$pi-2)$pages =[1,0]+$pages;
+			else{$pages = array_merge([1,0],$pages); $cursor+=2;}
+		}
 		if($begin==2) {array_unshift($pages, 1); $cursor++;}
-		if($ptt-$end>2) $pages += [0,$ptt];
+		if($ptt-$end>2) {
+			while(count($pages)>$pi-2){
+				$p = array_pop($pages);
+				if($p<$page)$cursor--;
+			}
+			if(count($pages)<$pi-2){
+				$e = $end;
+				while(count($pages)<$pi-2 && $e<$ptt-2){array_push($pages, ++$e);}
+			}
+			$pages = array_merge($pages,[0,$ptt]);
+		}
 		if($ptt-$end==2) $pages []= $ptt;
 		return ['pages'=>$pages,'cursor'=>$cursor];
 	}
