@@ -1,6 +1,6 @@
 <?php
 /**
- *	@file: DOM.inc
+ *	@file: DOMRender.inc
  *	@author: Soyoes 2014/05/17
  *	@uses: DOM Render like LiberJS
  *	@notice : this is a little bit SLOWER than Render.inc
