@@ -12,8 +12,6 @@
  * 
  * TODO add custome tags like <liber::pages>
  * 
- * OK{ (condition) ? var1 : var2 }
- * OK{ $a : $b }
  * 
  */
 class Render {

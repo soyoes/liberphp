@@ -359,8 +359,8 @@ function fs_annotations($comm){
 		//new tag
 		if(!empty($matches['tag'])){
 			$tag = trim(strtolower($matches['tag'][0]));
-			$value []= trim($matches['value'][0]);
-			$attr = $matches['attr'][0];
+			$value []= preg_replace('/^:\s*/','',trim($matches['value'][0]));
+			$attr = preg_replace('/^:\s*/','',$matches['attr'][0]);
 		}else if(!empty($cm)){
 			$value []= $cm;
 		}
@@ -386,11 +386,11 @@ function fs_annotations($comm){
  * 		"classes"	=> [
  * 			"annotations"=>[...],
  * 			"properties"=>[
- * 				"prop1"	=> [public=>1, protected=>0, private=>0, static=>1],
- * 				"prop2"	=> [public=>1, protected=>0, private=>0, static=>0],
+ * 				"prop1"	=> [visibility=>public, static=>1],
+ * 				"prop2"	=> [visibility=>public, static=>0],
  * 			],
  * 			"methods"=>[
- * 				"method1" => [public=>1, protected=>0, private=>0, static=>1, abstract=>0, annotations=>[...], params=>[...]],
+ * 				"method1" => [visibility=>public, static=>1, abstract=>0, annotations=>[...], params=>[...]],
  * 				...
  * 			],
  * 		]
@@ -409,6 +409,7 @@ function fs_src_tree($phpfile){
 		foreach ($ma['cls'] as $cls){
 			$classes[$cls] =[];
 			$cr = new ReflectionClass($cls);
+			$classes[$cls]["name"] = $cls;
 			//parent
 			$parent = $cr->getParentClass();
 			if($parent) $classes[$cls]['parent']=$parent->getName();
@@ -428,14 +429,14 @@ function fs_src_tree($phpfile){
 				$args = array_map(function($e){return $e->name;}, $mr->getParameters());
 				$anno = fs_annotations($mr->getDocComment());
 				$classes[$cls]["methods"][$mr->getName()] = [
+				'name'	=> $mr->getName(),
+				'classname'=>$cls,
 				'annotations'=>$anno, 'params'=>$args,
 				'abstract' => $mr->isAbstract(),
 				'constructor' => $mr->isConstructor(),
 				'destructor' => $mr->isDestructor(),
 				'final' => $mr->isFinal(),
-				'private' => $mr->isPrivate(),
-				'protected' => $mr->isProtected(),
-				'public' => $mr->isPublic(),
+				'visibility' => $mr->isPrivate()?'private':($mr->isProtected()?'protected':'public'),
 				'static' => $mr->isStatic()
 				];
 			}
@@ -443,10 +444,8 @@ function fs_src_tree($phpfile){
 			$props = $cr->getProperties();
 			foreach ($props as $pr){
 				$classes[$cls]["properties"][$pr->getName()] = [
-				'private' => $mr->isPrivate(),
-				'protected' => $mr->isProtected(),
-				'public' => $mr->isPublic(),
-				'static' => $mr->isStatic()
+				'visibility' => $pr->isPrivate()?'private':($pr->isProtected()?'protected':'public'),
+				'static' => $pr->isStatic()
 				];
 			}
 		}
@@ -461,7 +460,7 @@ function fs_src_tree($phpfile){
 			$comm = $ref->getDocComment();
 			if($comm==$comment) $comment="";
 			$anno = fs_annotations($comm);
-			$funcs[$fn] = ['annotations'=>$anno, 'params'=>$args];
+			$funcs[$fn] = ['annotations'=>$anno, 'params'=>$args, 'name'=>$fn];
 		}
 	}
 	return ['annotations' => empty($comment)?[]:fs_annotations($comment),'functions' => $funcs,'classes' => $classes];

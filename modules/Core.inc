@@ -5,6 +5,9 @@
  *	@uses: Core functions of dispatching, rendering.
  *****************************************************************************/
 
+/**
+ * consts 
+ */
 class Consts extends Conf{
 	
 	static $db_regexp_op = ['mysql'=>'REGEXP','postgres'=>'~'];

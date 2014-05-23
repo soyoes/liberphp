@@ -265,11 +265,11 @@ function pdo_trans($pdo,$querys,$datas){
  * @param $PDOOpt: FETCH_COLUMN, FETCH_ASSOC ...
  * @return array or assoc array.
  * 
- * @example : 
+ * @example :
  * 	db_query("select * from tasks");
- * @example : 
+ * @example :
  * 	db_query("select * from tasks where `id`=:id",[id=>1]);
- * @example : 
+ * @example :
  * 	db_query("select * from tasks where `id`=?",[1]);
  */
 function db_query($sql, $datas=[], $useCache = false) {

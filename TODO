@@ -1,16 +1,37 @@
+OK : render customize tag
+
+OK : FIX bugs on Render::paginate	
+
+OK : SessionDelegate, RestfulDelegate,  RenderDelegate
+
+OK : customize domain
+	use controller prefix
+	dont forget Test::exec	
+
+OK : add mode : develop mode | product mode | maintenance
+
+	
+-----------
+# : add default empty delegate file via installer
+	change Test parameter
+
+
+-----------
+# : query escape 
+	http request
+	For MySQL : these are available : ^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
+	
+-----------
+# : fix document.php bugs	
+# : add 2nd parameter $authRequired  to Filters' document  
+
+-----------
 OK : split Consts to conf.inc
 	
-# TODO : restful permission 
+OK : restful permission 
 
 
 -------------
-# : render
-
-	assign template_name
-	render customize tag
-	
-
-# : add 2nd parameter $authRequired  to Filters' document  
 
 
 OK : Render get HTML code. OR include multiple php file *****
@@ -22,32 +43,22 @@ OK : let T to load from ini instead of json
 	# : update document about T function, filename.keyname or mykey(=controller.mykey)
 		# change lang need restart apache
 		
-# : fix document.php bugs		
+	
 
-# : add mode : develop mode | product mode
-	//log, test_, template check timestamp
 -------------
-# : add delegate folder , SessionDelegate, RestfulDelegate,  RenderDelegate
-# : add default empty delegate file via installer
+OK : add delegate folder , 
 
 		
------------
-# : test render.<page>
+
 
 ------------
-# : customize domain
-	use controller prefix
-	dont forget Test::exec	
+
 
 -------------
 # : add OR query to restful ?
 
 ------------
 
-# : query escape 
-	http request
-	For MySQL : these are available : ^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
-	
 	
 	
 
@@ -55,7 +66,10 @@ OK : let T to load from ini instead of json
 
 
 ------------
-*: oauth2 server/client
+OK : oauth2 client
+
+# : Oauth2 server
+
 ------------
 Optimizing
 // Apache 
