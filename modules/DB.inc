@@ -249,6 +249,7 @@ function pdo_trans($pdo,$querys,$datas){
 	}catch(Exception $e){
 		error_log("DB Transaction ERR:",$e->getMessage());
 		$pdo->rollBack();
+        $res = false;
 	}
 	if($cnt>0)
 		$pdo->commit();
