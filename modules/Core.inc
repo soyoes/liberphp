@@ -300,12 +300,13 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 }
 
 function parse_rest_uri($uri, $method, &$params){
-	$uri = preg_replace("/^\//","",$uri);
+	$uri = preg_replace("/(^\/)|(\/$)/","",$uri);
 	$uparts =ds_remove(explode("/",$uri), "");
 	$method = strtolower($method);
 	
 	if ($method == "put" || $method == "delete") {
-		parse_str(file_get_contents('php://input'), $params);
+        parse_str(file_get_contents('php://input'), $input);
+        $params = array_merge($params, $input);
 	}
 	$target =($method=="post"||$method=="put")?$_POST: $_GET;
 	foreach($target as $k=>$v)
@@ -335,6 +336,7 @@ function parse_rest_uri($uri, $method, &$params){
 	}else if(in_array($uri,$resources["controllers"])){//controller exist with default action
 		$namespace = join("/",array_slice($uparts, 0 , $len-1));
 		$controller = $uparts[$len-1];
+        $action = $method;
 	}else if(in_array(join("/",array_slice($uparts, 0 , $len-1)),$resources["controllers"])){//controller exist with action
 		$namespace = join("/",array_slice($uparts, 0 , $len-2));
 		$controller = $uparts[$len-2];
