@@ -428,14 +428,21 @@ function db_make_query($table, $opts=[], $omit=[]){
 	$data = [];
 	if(is_hash($opts)){
 		$optStr = [];
+		// fix: When "@id" and "id" both exist.
+		if(array_key_exists("@id", $opts) && array_key_exists("id", $opts)) {
+			unset($opts['@id']);unset($opts['limit']);
+		}
 		foreach ($opts as $k => $v){
 			if($k=="@id")$k=$pk;
 			list($k,$cmd) = explode("@",$k);
-			if(array_key_exists($k, $schema) && !in_array($k,$omit)){
+			$keys = array_filter(preg_split('/\|/',$k), function($k) use($schema, $omit){
+				return array_key_exists($k, $schema) && !in_array($k,$omit);
+			});
+			if(!empty($keys)){
 				$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
 				$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
 				$func = Consts::$db_query_filters[$cmd];
-				$vStr = $func($k, $v, $data);
+				$vStr = $func(join("|", $keys), $v, $data);
 				if($vStr) $optStr []= $vStr;
 			}
 		}
@@ -625,7 +632,23 @@ function db_v($v, $typeDef="", $bsonText=false){
 	return $v;
 }
 
-
+function db_make_filters($k,$k_operator, $v, $v_operator, &$o, $func_make) {
+	$keys = is_array($k)? $k : preg_split('/\|/',$k);
+	$values = is_array($v)? $v : preg_split('/\|/',$v);
+	$conditions =[]; $idx=0;
+	foreach($keys as $_k) {
+		$sub_cond = [];
+		foreach($values as $_v) {
+			$sql = $func_make($_k, $_v, $o, $idx);
+			if($sql) $sub_cond[] = $sql;
+			$idx++;
+		}
+		if(!empty($sub_cond))
+			$conditions[] = count($values)>1 ? "(". join(" $v_operator ", $sub_cond) .")" : join(" $v_operator ", $sub_cond);
+	}
+	if(count($conditions) <=0 ) return false;
+	return count($conditions)>1 ? "(". join(" $k_operator ", $conditions) .")" : join(" $k_operator ", $conditions);	
+}
 
 function db_init_filters(){
 	/*Test cases
@@ -645,28 +668,93 @@ function db_init_filters(){
 	"title@~~"=>"^My",
 	"title@!~~"=>"'"
 	**/
+
 	if(empty(Consts::$db_query_filters))
 		Consts::$db_query_filters = [
-		"=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`=:$k";},
-		"!" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`!=:$k";},
-		"<" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<:$k";},
-		">" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>:$k";},
-		"<=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`<=:$k";},
-		">=" 	=> function($k,$v,&$o){$o[$k]=$v;return "`$k`>=:$k";},
-		"[]" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` IN (".join(",",$vs).")";},
-		"![]" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` NOT IN (".join(",",$vs).")";},
-		"()" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
-		"!()" 	=> function($k,$v,&$o){if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";},
-		"?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";},
-		"!?"  	=> function($k,$v,&$o){if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";},
-		"~" 	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		"=" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
+				if($v==="NULL") return "`$k` IS NULL"; else { $_k = $k."_".$idx; $o[$_k]=$v;return "`$k`=:". $_k; }
+			});
+		},
+		"!" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				if($v==="NULL") return "`$k` IS NOT NULL"; else { $_k = $k."_".$idx; $o[$_k]=$v;return "`$k`!=:$_k"; }
+			});
+		},
+		"<" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				$_k = $k."_".$idx; $o[$_k]=$v;return "`$k`<:$_k";
+			});
+		},
+		">" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				$_k = $k."_".$idx; $o[$_k]=$v;return "`$k`>:$_k";
+			});
+		},
+		"<=" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				$_k = $k."_".$idx; $o[$_k]=$v;return "`$k`<=:$_k";
+			});
+		},
+		">=" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				$_k = $k."_".$idx; $o[$_k]=$v;return "`$k`>=:$_k";
+			});
+		},
+		"[]" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false;$vs=array_map(function($e){return db_v($e);},$v);return "`$k` IN (".join(",",$vs).")";
+			});
+		},
+		"![]" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				if(is_string($v))$v=explode(',',$v);if(count($v)==0)return false; $vs=array_map(function($e){return db_v($e);},$v);return "`$k` NOT IN (".join(",",$vs).")";
+			});
+		},
+		"()" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";
+			});
+		},
+		"!()" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return "(`$k` NOT BETWEEN ".min($v[0],$v[1])." AND ".max($v[0],$v[1]).")";
+			});
+		},
+		"?"  	=> function($k,$v,&$o){
+			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
+				if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";
+			});
+		},
+		"!?"  	=> function($k,$v,&$o){
+			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
+				if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";
+			});
+		},
+		"~" 	=> function($k,$v,&$o){
+			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
+				$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";
+			});
+		},
 		//Regexp only mysql or regexp
 		/*	@example db_find("users", ["title@~" => "^My"]) == select * from users where title regexp '^My'
 			For MySQL : these are available : ^ , $ , . , [...] , [^...] , p1|p2|p3 , * , + , {n} , {m,n}
 		*/
-		"!~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-		"~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
-		"!~~"	=> function($k,$v,&$o){$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";},
+		"!~"	=> function($k,$v,&$o){
+			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
+				$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "`$k` NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";
+			});
+		},
+		"~~"	=> function($k,$v,&$o){
+			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
+				$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";
+			});
+		},
+		"!~~"	=> function($k,$v,&$o){
+			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
+				$op = Consts::$db_regexp_op[Consts::$db_engine];if(!isset($op))return false;return "LOWER(`$k`) NOT $op '".mysql_escape_string(preg_replace('/^\/|\/$/',"",$v))."'";
+			});
+		},
 		//Regexp with ignorecase option only mysql or regexp
 	];
 }
