@@ -184,8 +184,14 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	}
 	try {
 		if($returnId==true && !$isUpdate) {
-			$res = pdo_trans($pdo,[$sql, "SELECT LAST_INSERT_ID() as 'last_id'"],[$qdatas]);
-			$data["id"] = $res[0]["last_id"];
+			if(!$pdo->inTransaction()) {
+				$res = pdo_trans($pdo,[$sql, "SELECT LAST_INSERT_ID() as 'last_id'"],[$qdatas]);
+				$data["id"] = $res[0]["last_id"];
+			}else{
+				pdo_query($pdo, $sql,$qdatas);
+				$res = pdo_query($pdo, "SELECT LAST_INSERT_ID() as 'last_id'", [ ]);
+				$data["id"] = $res[0]["last_id"];
+			}
 		}else{
 			pdo_query($pdo, $sql,$qdatas);
 		}
