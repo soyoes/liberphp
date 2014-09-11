@@ -154,7 +154,11 @@ class Render {
 							switch($len){
 								case 1:$phpcode .= '<?php foreach('.$parts[0].' as $key=>$value) { ?>';break;
 								case 2:$phpcode .= '<?php foreach('.$parts[0].' as $key=>'.$parts[1].') { ?>';break;
-								default :$phpcode .= '<?php foreach('.$parts[0].' as '.$parts[1].'=>'.$parts[2].') { ?>';break;
+								default :
+									if(preg_match('/^\d+$/', $parts[1])&&preg_match('/^\d+$/', $parts[2])){
+										$phpcode .= '<?php for($'.$parts[0].'='.$parts[1].';$'.$parts[0].'<'.$parts[2].';$'.$parts[0].'++) { ?>';
+									}else
+										$phpcode .= '<?php foreach('.$parts[0].' as '.$parts[1].'=>'.$parts[2].') { ?>';break;
 							}
 							break;
 						case 'if':
