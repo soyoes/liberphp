@@ -84,8 +84,10 @@ function render_html($templateName=null, $datas=array()){
 	$appName = str_has($req->getURI(),'/'.APP_NAME.'/')?'/'.APP_NAME:'';
 	$render->assign('TITLE',APP_NAME);
 	header('Content-type: text/html; charset=UTF-8');
-	if($templateName&&empty($data)&&is_array($templateName))
+	if($templateName&&empty($datas)&&is_array($templateName)){
+		$datas = $templateName;
 		$templateName=null;
+	}
 	if (!$templateName)
 		$templateName = $req->getController().'_'.$req->getAction().'.html';
 	if(!str_ends($templateName, '.html'))
