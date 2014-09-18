@@ -214,30 +214,45 @@ function call($url, $method, array $data, array $options=array()){
 }
 
 /**
- * language support . get text by key from /conf/text/{$language}/...int 
- * @param $key : filename.key, or key. NOTICE: dot in keys will be parsed to target file name.
+ * language support . get text by key from /conf/text.csv
+ * @param $key : id, the first column of text.csv
  * @example:
  *  Consts::$lang = "jp"; // set this in your liber.php	
  *  $txt = T("tasks.task_name"); 
- * 	// target file : /conf/text/jp/tasks.ini
- * 	// key : task_name
+ * 	// target file : /conf/text.csv
+ * 	// id : tasks.task_name
  */
 function T($key){
 	$filename = null;
 	$lang = Consts::$lang;
-	if(str_has($key, ".")){
-		list($filename,$key) = explode(".", $key, 2);
-	}else{
-		$filename = strtolower(REQ::getInstance()->getController());
-	}
-	$texts = cache_get("T_".$filename, function($fn){
-		$fn = preg_replace("/^T_/", "", $fn);
-		$file = join(__SLASH__,[APP_DIR,"conf","text",Consts::$lang,$fn.".ini"]);
+	$texts = cache_get("__TEXTS__", function($fn){
+		$file = join(__SLASH__,[APP_DIR,"conf","text.csv"]);
 		if (file_exists($file)){
-			return parse_ini_file($file, true);
+			$lines = preg_split('/[\r\n]+/',file_get_contents($file));
+			$idx = 0;
+			$res = [];$langs = [];
+			foreach ($lines as $line) {
+				$cols = preg_split('/[\t,]/',$line);
+				if($idx++==0){
+					if($cols[0]!='id'){
+						error_log("Language File Error: the first column of text.csv must have a name of 'id' ");
+						return [];
+					}
+					$langs = $cols;
+					array_shift($langs);
+					continue;
+				}else{
+					$c = 1;
+					$id = $cols[0];
+					$res[$id] = [];
+					foreach ($langs as $l) 
+						$res[$id][$l] = $cols[$c]?$cols[$c++]:"";
+				}
+			}
+			return $res;
 		}return [];
 	});
-	return isset($texts[$key])?$texts[$key]:"__ERR_WORD_WITH_NO_DEF($key)__";
+	return isset($texts[$key][$lang])?$texts[$key][$lang]:"__ERR_WORD_NOT_EXISTS_($key,$lang)__, please check your /conf/text.csv";
 }
 
 /**
@@ -324,6 +339,8 @@ function parse_rest_uri($uri, $method, &$params){
 		$params[$k] = htmlEntities($v); //XSS
 	}
 	unset($params["@format"]);
+	if($params["@test_mode"]) $_REQUEST["@test_mode"]=1;
+ 	unset($params["@test_mode"]);
 
 	$resources = REQ::load_resources();
 
@@ -537,7 +554,7 @@ class REQ {
 	* @param format: text | json | html
 	*/
 	static function write($text, $format){
-		if(self::$test_mode && $format=="json"){
+		if((self::$test_mode||$_REQUEST["@test_mode"]) && $format=="json"){
 			Tests::writeJSON($text);
 		}else
 			echo $text;

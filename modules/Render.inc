@@ -48,36 +48,23 @@ class Render {
 			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
 		},false);
 		list($before, $after) = explode('__CONTENTS__', $s);
-		if(!(REQ::isTestMode() && REQ::stackSize()>1)) 
-			REQ::write($before, "html");
+
 		//set variables
 		if(!empty($data))
 		foreach ($data as $k=>$v)
 			$this->data[$k] = $v;
+		$this->data['__render'] = $this;
 		extract($this->data);
-		//$output="--";
-		if(is_string($file)){
-			$r = $this->render_file($file,$data);
-			if($r) {
-				ob_start(); include($r);
-				$output = ob_get_contents();
-				ob_end_clean();
-			};
-		}else if(is_array($file))
-			foreach ($file as $f){
-				$r = $this->render_file($f,$data);
-				if($r) {
-					ob_start(); include($r);
-					$output = ob_get_contents();
-					ob_end_clean();
-				};
-				flush();
-			}
+
+		$r = $this->render_file($file,$s);
+		if($r) include($r);
+		/*
+		ob_start(); include($r);
+		$output = ob_get_contents();
 		REQ::write($output, "html");
-		//if($after) {include $after;flush();}
-		if(!(REQ::isTestMode() && REQ::stackSize()>1)) 
-			REQ::write($after, "html");
-		
+		ob_end_clean();
+		flush();
+		*/
 		unset($this->data);
 		unset($data);
 
@@ -87,14 +74,14 @@ class Render {
 	 * get phpcode from file
 	 * 
 	 */
-	function render_file($file,$data=[]){
+	function render_file($file,$template_code){
+		$prefix  = 'template-' . REQ::getTemplateType() . '-';
 		$filepath = self::$path.$file;
 		if(!file_exists($filepath)) return false;
-		$prefix  = 'template-' . REQ::getTemplateType() . '-';
 		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
 		if(!file_exists($outpath)
 			||(Consts::$mode=="Developing" && filemtime($filepath) > filemtime($outpath))){
-			$code = $this->compile($filepath);
+			$code = $this->compile($filepath,$template_code);
 			if(isset($code) && $code!=""){
 				file_put_contents($outpath,$code);
 				unset($code);
@@ -103,8 +90,10 @@ class Render {
 		return $outpath;
 	}
 
-	function compile($file){
-		$rows = preg_split('/(\{[^\{^\}]*\})/', file_get_contents($file), -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY ) ;
+	function compile($file,$wrapper){
+		list($before, $after) = $wrapper?explode('__CONTENTS__', $wrapper):["",""];
+		$src = $before.file_get_contents($file).$after;
+		$rows = preg_split('/(\{[^\{^\}]*\})/', $src, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY ) ;
 		$phpcode = '';
 		$indent = 0;
 		$ignore = false;
@@ -127,11 +116,10 @@ class Render {
 			if(empty($matches[0])){
 				$phpcode .= $code;
 			}else{
-				list($close, $tag, $val) = [$matches['close'][0]=="/"?true:false, $matches['tag'][0], 
-						preg_replace('/\.([a-zA-Z0-9_]+)/', "['$1']",(trim($matches['val'][0])))];
-				
+				list($close, $tag, $val) =  [$matches['close'][0]=="/"?true:false, $matches['tag'][0], trim($matches['val'][0])];
 				if($tag=='' || $tag=='=')$tag='echo';
 				if($tag=='%')$tag='text';
+				$val = $tag=="text"?$val: preg_replace('/\.([a-zA-Z0-9_]+)/', "['$1']",$val);
 				if($close){
 					if($tag=='if'||$tag=='for')$indent --;
 					if($tag=='ignore'){
@@ -177,8 +165,7 @@ class Render {
 						case 'var':
 							$phpcode .= '<?php '.$val.'; ?>';break;
 						case 'include':
-							$val = preg_replace_all('/\'"/',"",$val);
-							$phpcode .= '<?php include_template("'.$val.'"); ?>';break;
+							$phpcode .= '<?php $__render->include_template("'.preg_replace('/\'"/',"",$val).'"); ?>';break;
 						case 'ignore':
 							$ignore = true;
 							break;
@@ -189,6 +176,18 @@ class Render {
 			}
 		}
 		return $phpcode;
+	}
+
+	function include_template($f){
+		$r = $this->render_file($f.".html");
+		$output = "";
+		if($r) {
+			ob_start(); include($r);
+			$output = ob_get_contents();
+			ob_end_clean();
+		};
+		echo $output;
+		flush();
 	}
 	
 	/**
@@ -235,6 +234,5 @@ class Render {
 		if($ptt-$end==2) $pages []= $ptt;
 		return ['pages'=>$pages,'cursor'=>$cursor];
 	}
-	
 }
 

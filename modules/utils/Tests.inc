@@ -13,9 +13,11 @@
  *
  *****************************************************************************/
 
+
+
 class Tests {
-	public static function run($controller, $action){
-		$head = <<<EOF
+
+	private static $head = <<<EOF
 <!DOCTYPE html>
 <html>
 <head>
@@ -28,13 +30,17 @@ class Tests {
 	div,td{font-size:10pt;}
 	table{border-collapse:collapse;margin-bottom:10px;}
 	td, th{padding-left:5px;padding-right:5px;border:1px solid #CCC;}
+	iframe{width:960px;minheight:100px;}
 	.case{width:960px;margin-left:auto;margin-right:auto;margin-bottom:10px;}
 	.case > h3{background-color:rgb(54,70,83);color:white;padding:5px;padding-left:10px;}
 	</style>
 </head>
 <body>
 EOF;
-		echo $head;
+	private static $foot = "</body></html>";
+
+	public static function run($controller, $action){
+		echo self::$head;
 		$cases = self::loadCases($controller,$action);
 		if (!empty($cases)){
 			$idx = 1;
@@ -45,13 +51,15 @@ EOF;
 		}else{
 			echo "<H1>Error: No Case Found.</H1><br>Test case does not exist <br> Pls add cases to /test/[CONTROLLER]_[ACTION].csv<br>And try again.";
 			echo "</body></html>";
-			error(400,"html");
+			return error(400,"html");
 		}
-		echo "</body></html>";
+		echo self::$foot;
 	}
 
 	static function writeJSON($text){
 		$data = json_decode($text,true);
+		header('Content-type: text/html; charset=UTF-8');
+		echo self::$head;
 		echo "<table>";
 		if(empty($data)){
 			echo "<tr><td>Empty</td></tr></table><div>Response Type : JSON(array)</div>";
@@ -74,6 +82,7 @@ EOF;
 			}
 			echo "</table><div>Response Type : JSON(array)</div>";	
 		}
+		echo self::$foot;
 		
 	}
 
@@ -84,7 +93,7 @@ EOF;
 			//$file = fopen($file, 'r');
 			$row = 0; $titles = []; $cols=0;
 			$cases = [];
-			$lines = str_getcsv(file_get_contents($file),"\r\n");
+			$lines = preg_split('/[\r\n]+/',file_get_contents($file));
 			foreach ($lines as $line) {
 				$line = explode("\t",$line);
 				if($row == 0) {
@@ -115,10 +124,13 @@ EOF;
 		foreach ($case as $k=>$v){
 			if(!str_has($k,"[")) $params[$k] = $v;
 		}
+		$paramStrDisp  = str_replace(["%2C","&"],[",","&amp;"], http_build_query($params));
+		$params["@test_mode"]=true;
 		$paramStr  = str_replace(["%2C","&"],[",","&amp;"], http_build_query($params));
 		echo "<div class='case'>";
-		echo "<h3> $idx) ".strtoupper($method)." : $uri $paramStr</h3>";
-		$req = REQ::dispatch($uri, $method, $params);
+		echo "<h3> $idx) ".strtoupper($method)." : $uri $paramStrDisp</h3>";
+		echo "<iframe src='$uri?$paramStr'></iframe>";
+		//$req = REQ::dispatch($uri, $method, $params);
 		echo "</div>";
 	}
 }
