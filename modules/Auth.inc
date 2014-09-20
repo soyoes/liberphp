@@ -49,9 +49,10 @@ class Auth{
 			$permission = isset($schemaDef["general"]["permission"])?$schemaDef["general"]["permission"]:"";
 		}else{
 			$ctl = $req->getController();
-			$ns = $req->getNamespace();
 			$tree = cache_get('APP_PERMISSION_'.$ctl, function($key){
 				$ctrldir = APP_DIR.__SLASH__.'controllers'.__SLASH__;
+				$req = REQ::getInstance();
+				$ns = $req->getNamespace();
 				$controller_dir = !empty($ns) ? $ctrldir.$ns.'/':$ctrldir;
 				$fp = $controller_dir.str_replace('APP_PERMISSION_',"",$key).".inc";
 				$tree = fs_src_tree($fp);
@@ -61,10 +62,10 @@ class Auth{
 				}
 				return $permission; 
 			},false);
+
 			$act = $req->getAction();
 			$permission = isset($tree[$act])?$tree[$act]:$tree["@file"];
 		}
-		
 		$bits = !isset($permission)?($auth["group"]==0?"8":"F"): $permission[$auth["group"]];//bits is hex string (len=1)
 		if($bits=="0") return $auth["group"]==0? 401 : 403;
 		$bits = base_convert($bits, 16, 2);//int -> 4 bit binary string

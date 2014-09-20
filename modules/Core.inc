@@ -376,6 +376,10 @@ function parse_rest_uri($uri, $method, &$params){
 			$res["static"] = join("_",$uparts).".html";
 		}else error(400,"$uri");
 	}
+
+	if(in_array($action,["get","post","put","delete"]) && $method!=$action)
+		error(400,'Action Name Permission Error : you can not access the action name with different http method. ');
+
 	$res["namespace"] = $namespace;
 	$res["controller"] = $controller;
 	$res["action"] = $action;
@@ -610,7 +614,7 @@ class REQ {
 			
 			$auth = Auth::checkPermission($this);
 			if($auth != 200){
-				if($auth == 401)  return error(401, "RESTful ERROR : Sorry, You are not permited to do that.");
+				if($auth == 401)  return error(401, "Permission ERROR : Sorry, You are not permited to do that.");
 				if($auth == 403)  return error(403);
 			}
 			

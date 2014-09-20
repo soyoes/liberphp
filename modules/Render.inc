@@ -131,8 +131,10 @@ class Render {
 					$phpcode .= $code;
 				}else if(!empty($custom_tags)&&in_array($tag, $custom_tags)){
 					//custom tags
-					$code = call_user_func(["RenderDelegate","tag_".$tag],$val,$this->data);
-					$phpcode .= $code;
+					//$code = call_user_func(["RenderDelegate","tag_".$tag],$val,$this->data);
+					extract (["__template_data"=>$this->data]);
+					$phpcode .= "<?php echo RenderDelegate::tag_{$tag}(".(empty($val)?'""':'"'.$val.'"').", \$__template_data); ?>";
+					
 				}else{
 					switch($tag){
 						case 'for':
