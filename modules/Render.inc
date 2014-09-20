@@ -54,6 +54,12 @@ class Render {
 		foreach ($data as $k=>$v)
 			$this->data[$k] = $v;
 		$this->data['__render'] = $this;
+		$req = REQ::getInstance();
+		if(!$this->data['__controller']) $this->data['__controller'] = $req->getController();
+		if(!$this->data['__namespace']) $this->data['__namespace'] = $req->getNamespace();
+		if(!$this->data['__action']) $this->data['__action'] = $req->getAction();
+		if(!$this->data['__params']) $this->data['__params'] = $req->params;
+
 		extract($this->data);
 
 		$r = $this->render_file($file,$s);
