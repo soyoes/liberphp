@@ -190,19 +190,19 @@ function redirect($url,$clientRedirect=false) {
 function call($url, $method, array $data, array $options=array()){
 	$method = strtoupper($method);
 	$defaults = $method == "POST" || $method == "PUT" ?
-	[	'CURLOPT_POST' 				=> 1,
-		'CURLOPT_HEADER' 			=> 0,
-		'CURLOPT_URL' 				=> $url,
-		'CURLOPT_FRESH_CONNECT' 	=> 1,
-		'CURLOPT_RETURNTRANSFER'	=> 1,
-		'CURLOPT_FORBID_REUSE' 		=> 1,
-		'CURLOPT_TIMEOUT' 			=> 4,
-		'CURLOPT_POSTFIELDS' 		=> http_build_query($data)
+	[	CURLOPT_POST           => 1,
+        CURLOPT_HEADER         => 0,
+        CURLOPT_URL            => $url,
+        CURLOPT_FRESH_CONNECT  => 1,
+        CURLOPT_RETURNTRANSFER => 1,
+        CURLOPT_FORBID_REUSE   => 1,
+        CURLOPT_TIMEOUT        => 4,
+        CURLOPT_POSTFIELDS     => http_build_query($data)
 	]:[
-		'CURLOPT_URL' 		=> $url. (strpos($url, '?') === FALSE ? '?' : ''). http_build_query($data),
-		'CURLOPT_HEADER'	=> 0,
-		'CURLOPT_RETURNTRANSFER' => TRUE,
-		'CURLOPT_TIMEOUT'	=> 4
+        CURLOPT_URL            => $url. (strpos($url, '?') === FALSE ? '?' : ''). http_build_query($data),
+        CURLOPT_HEADER         => 0,
+        CURLOPT_RETURNTRANSFER => TRUE,
+        CURLOPT_TIMEOUT        => 4
 	];
 	$ch = curl_init();
 	curl_setopt_array($ch, ($options + $defaults));
