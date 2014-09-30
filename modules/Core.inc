@@ -693,6 +693,9 @@ class REQ {
 			}else if(Consts::$mode=="Developing" && str_starts($action,"test_") && function_exists(str_replace("test_","",$action))){//unit test
 				self::$test_mode = true;
 				return Tests::run($data["controller"],str_replace("test_","",$action));
+			}else if(function_exists("__magic")){
+				$this->params["@path"]=$action;
+				$exec("__magic");
 			}else{//no action
 				return render_default_template();
 			}
