@@ -88,7 +88,8 @@ class Render {
 		if(!file_exists($filepath)) return false;
 		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
 		if(!file_exists($outpath)
-			||(Consts::$mode=="Developing" && filemtime($filepath) > filemtime($outpath))){
+			//||(Consts::$mode=="Developing" && filemtime($filepath) > filemtime($outpath))){
+			||Consts::$mode=="Developing"){
 			$code = $this->compile($filepath,$template_code);
 			if(isset($code) && $code!=""){
 				file_put_contents($outpath,$code);
