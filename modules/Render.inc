@@ -16,8 +16,11 @@
  */
 class Render {
 	static $path;
+
+	private static $var_prefix = "LBR_";
+
 	private static $output_path;
-	private static $ext='.html';
+	private static $ext = '.html';
 	
 	private $layout = '_layout';
 	private $data = [];
@@ -43,11 +46,10 @@ class Render {
 	function render($file,$data=[],$layout=null){
 		$template = isset($layout)? $layout : $this->layout;
 		$key = 'template-'. REQ::getTemplateType() . "-" .$template;
-		$s = cache_get($key, function($f){
+		$wrapper_code = cache_get($key, function($f){
 			$key_prefix = 'template-'. REQ::getTemplateType() . "-";
 			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
 		},false);
-		list($before, $after) = explode('__CONTENTS__', $s);
 
 		//set variables
 		if(!empty($data))
@@ -60,9 +62,9 @@ class Render {
 		if(!$this->data['__action']) $this->data['__action'] = $req->getAction();
 		if(!$this->data['__params']) $this->data['__params'] = $req->params;
 
-		extract($this->data);
-
-		$r = $this->render_file($file,$s);
+		$_REQUEST[self::$var_prefix."TMP_DATA"] = $this->data;
+		extract($this->data, EXTR_PREFIX_ALL, self::$var_prefix);
+		$r = $this->render_file($file,$wrapper_code);
 		if($r) include($r);
 		/*
 		ob_start(); include($r);
@@ -126,6 +128,7 @@ class Render {
 				if($tag=='' || $tag=='=')$tag='echo';
 				if($tag=='%')$tag='text';
 				$val = $tag=="text"?$val: preg_replace('/\.([a-zA-Z0-9_]+)/', "['$1']",$val);
+				$val = preg_replace('/\$/','$'.self::$var_prefix."_",$val);
 				if($close){
 					if($tag=='if'||$tag=='for')$indent --;
 					if($tag=='ignore'){
@@ -137,10 +140,7 @@ class Render {
 					$phpcode .= $code;
 				}else if(!empty($custom_tags)&&in_array($tag, $custom_tags)){
 					//custom tags
-					//$code = call_user_func(["RenderDelegate","tag_".$tag],$val,$this->data);
-					extract (["__template_data"=>$this->data]);
-					$phpcode .= "<?php echo RenderDelegate::tag_{$tag}(".(empty($val)?'""':'"'.$val.'"').", \$__template_data); ?>";
-					
+					$phpcode .= "<?php echo RenderDelegate::tag_{$tag}(".(empty($val)?'""':'"'.$val.'"').", \$_REQUEST['".self::$var_prefix."TMP_DATA']); ?>";
 				}else{
 					switch($tag){
 						case 'for':

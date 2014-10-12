@@ -62,12 +62,24 @@ class Consts extends Conf{
 Consts::init();
 
 /**
+ * Assign values to render.
  * @param string $key
  * @param unknown_type $value
  */
 function assign($key, $value){
 	$render = REQ::getInstance()->getRender();
 	$render->assign($key, $value);
+}
+
+/**
+ * Set render layout
+ * @param string $file
+ * @example
+ *   render_layout("_mylayout.html");
+ */
+function render_layout($file){
+	$req = REQ::getInstance();
+	$req->setRenderLayout($file);
 }
 
 function render($arg1=false, $arg2=false){

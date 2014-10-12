@@ -52,6 +52,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
  **/
 function pdo_query($pdo, $sql, $datas=[]) {
 	if(!$pdo || empty($sql))return false;
+	error_log($sql);
 	$isQeury = str_starts(strtolower(trim($sql)), "select");
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
@@ -729,12 +730,12 @@ function db_init_filters(){
 		},
 		"?"  	=> function($k,$v,&$o){
 			return db_make_filters($k, "or", $v, "or", $o, function($k,$v, &$o, $idx){
-				if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".$v."'";
+				if(!str_has($v,"%"))$v="%$v%";return "`$k` LIKE '".preg_replace('/[\+\s]+/','%',$v)."'";
 			});
 		},
 		"!?"  	=> function($k,$v,&$o){
 			return db_make_filters($k, "and", $v, "and", $o, function($k,$v, &$o, $idx){
-				if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".$v."'";
+				if(!str_has($v,"%"))$v="%$v%";return "`$k` NOT LIKE '".preg_replace('/[\+\s]+/','%',$v)."'";
 			});
 		},
 		"~" 	=> function($k,$v,&$o){
