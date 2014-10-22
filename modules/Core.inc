@@ -169,6 +169,16 @@ function error($code, $contentType="text", $reason=""){
 }
 
 /**
+*   detecting HTTPS request
+*/
+function isSecure() {
+    if(!empty($_SERVER['HTTP_X_FORWARDED_PROTO']))
+        return strtoupper($_SERVER['HTTP_X_FORWARDED_PROTO']) == "HTTPS";
+    else
+        return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
+}
+
+/**
  * redirect to url
  * @param $url: url to redirect
  * @param $clientRedirect: if let client browser to do the redirect job. (for some reason, header("Location :xxx") does not work well sometime.) 
@@ -178,8 +188,8 @@ function redirect($url,$clientRedirect=false) {
 	$appName = str_has($_SERVER['REQUEST_URI'],APP_NAME."/")?
 	APP_NAME."/":"";
 
-	$redirectUrl = str_starts($url, "http:") ||str_starts($url, "https:")?
-	$url: "http://".$_SERVER["HTTP_HOST"]."/".$appName . $url;
+	$redirectUrl = str_starts($url, "http:") || str_starts($url, "https:") ?
+	   $url : (isSecure() ? "https" : "http") . "://".$_SERVER["HTTP_HOST"]."/".$appName . $url;
 	
 	// for some reason this sometimes does not works well !!
 	if(!$clientRedirect){
