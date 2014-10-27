@@ -248,7 +248,7 @@ function call($url, $method, $data = [], $header = [], $options = []) {
 function T($key){
 	$filename = null;
 	$lang = Consts::$lang;
-	$texts = cache_get("__TEXTS__", function($fn){
+	$text_func = function($fn){
 		$file = join(__SLASH__,[APP_DIR,"conf","text.csv"]);
 		if (file_exists($file)){
 			$lines = preg_split('/[\r\n]+/',file_get_contents($file));
@@ -274,7 +274,8 @@ function T($key){
 			}
 			return $res;
 		}return [];
-	});
+	};
+	$texts = Consts::$mode=="Developing"?$text_func("__TEXTS__"):cache_get("__TEXTS__", $text_func);
 	return isset($texts[$key][$lang])?$texts[$key][$lang]:"__ERR_WORD_NOT_EXISTS_($key,$lang)__, please check your /conf/text.csv";
 }
 
