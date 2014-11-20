@@ -99,13 +99,13 @@ class Auth{
 		$r = AuthDelegate::login($p ,$req->params);
 		if($r["error"]){ return ["error"=>$r["error"]];}
 		$pk = $schemaDef['general']['pk'];
-		$_SESSION[Consts::$auth_group_name] = $p["group"];
+        $_SESSION[Consts::$auth_group_name] = $r["group"] ? $r["group"] : $p['group'];
 		$uid_key = $r["activated"]?Consts::$auth_user_id_name:"__".Consts::$auth_user_id_name;
 		$u_key = $r["activated"]?Consts::$auth_user_data_name:"__".Consts::$auth_user_data_name;
 		$_SESSION[$uid_key] = $r["user"][$pk];
 		$_SESSION[$u_key] = $r["user"];
 		return [
-			'group'	=> $p['group'],
+            'group' => $r["group"] ? $r["group"] : $p['group'],
 			'user'	=> $r["user"],
 			'userId'=> $r["user"][$pk],
 			'activated'=>$r['activated']
