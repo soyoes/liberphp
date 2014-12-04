@@ -129,7 +129,8 @@ class Render {
 				if($tag=='' || $tag=='=')$tag='echo';
 				if($tag=='%')$tag='text';
 				$val = $tag=="text"?$val: preg_replace('/\.([a-zA-Z0-9_]+)/', "['$1']",$val);
-				$val = preg_replace('/\$/','$'.self::$var_prefix."_",$val);
+				if(!preg_match('/\$(_GET|_POST|_REQUEST|_SESSION)/', $val))
+					$val = preg_replace('/\$/','$'.self::$var_prefix."_",$val);
 				if($close){
 					if($tag=='if'||$tag=='for')$indent --;
 					if($tag=='ignore'){

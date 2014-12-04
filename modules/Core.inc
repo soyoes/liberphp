@@ -171,7 +171,7 @@ function error($code, $contentType="text", $reason=""){
 /**
 *   detecting HTTPS request
 */
-function isSecure() {
+function is_https() {
     if(!empty($_SERVER['HTTP_X_FORWARDED_PROTO']))
         return strtoupper($_SERVER['HTTP_X_FORWARDED_PROTO']) == "HTTPS";
     else
@@ -189,7 +189,7 @@ function redirect($url,$clientRedirect=false) {
 	APP_NAME."/":"";
 
 	$redirectUrl = str_starts($url, "http:") || str_starts($url, "https:") ?
-	   $url : (isSecure() ? "https" : "http") . "://".$_SERVER["HTTP_HOST"]."/".$appName . $url;
+	   $url : (is_https() ? "https" : "http") . "://".$_SERVER["HTTP_HOST"]."/".$appName . $url;
 	
 	// for some reason this sometimes does not works well !!
 	if(!$clientRedirect){
