@@ -628,7 +628,11 @@ class REQ {
 	 */
 	public function process(){
 		if($this->dispatched===true)return;
-	
+        if (Consts::$mode=="Developing") {
+            error_log("URI: " . $this->getURI());
+            error_log("PARAMETERS: " . json_encode($this->params));
+        }
+        
 		try{
 			$filters = Consts::$filters;
 			$filterNames = array_keys($filters);
