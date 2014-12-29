@@ -38,6 +38,12 @@ function create(){
 	build($proj);
 	//exec("cp init.inc ../$proj/");
 	exec("mv liber.php ../$proj/");
+	exec("cp miscs/index.php ../$proj/");
+
+	exec("sed -i -e \"s/YOUR_APP_NAME/".$proj."/g\" ../$proj/index.php");	
+	exec("sed -i -e \"s/YOUR_LIBER_DIR/".str_replace("/", "\/", $pwd)."/g\" ../$proj/index.php");	
+	exec("rm -f ../$proj/index.php-e");	
+
 	exec("cp modules/Conf.inc ../$proj/conf/conf.inc");
 	exec("chmod +x ../$proj/liber.php");
 	//exec("sed -i -e 's:/*__APP_NAME__*/:const APP_NAME=\"$proj\";\nconst LIBER_DIR=\"$pwd\";:g' ../$proj/liber.php");

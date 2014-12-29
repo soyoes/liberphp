@@ -4,8 +4,8 @@
  *	@author: Soyoes 2014/01/28
  *****************************************************************************/
 require 'conf/conf.inc';
-const APP_NAME = '';
-const LIBER_DIR = '';
+const APP_NAME = 'YOUR_APP_NAME';
+const LIBER_DIR = 'YOUR_LIBER_DIR';
 const __SLASH__ = DIRECTORY_SEPARATOR;
 define('APP_DIR', dirname(__FILE__));
 define('IMAGE_DIR', APP_DIR . __SLASH__ . "webroot" . __SLASH__ . "images" . __SLASH__);
