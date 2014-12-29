@@ -516,6 +516,9 @@ function db_migrate($table){
 			$colStmt .= "`".$col."` ".$type.", ";
 		}
 		$incStmt = "";
+		$auto_increment = $schema_def["general"]["auto_increment"];
+		if($auto_increment) $incStmt .= "auto_increment=".$auto_increment;
+
 		$sql = "";
 		if (str_has($pk, "|")||str_has($pk, "+")||str_has($pk, ",")){
 			$parts = preg_split("/[\|\+,]/", $pk);
