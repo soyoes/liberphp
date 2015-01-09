@@ -7,14 +7,33 @@ use Aws\S3\S3Client;
     AWS sdk for php: https://github.com/aws/aws-sdk-php
     aws.phar can be downloaded from https://github.com/aws/aws-sdk-php/releases/tag/2.7.13
 */
-class S3 {
-    public static function s3_conn() {
-        $s3 = S3Client::factory([
-            "key" => Consts::$s3_key,
-            "secret" => Consts::$s3_secret
-        ]);
 
-        return $s3;
+class S3 {
+
+    private static $s3 = null;
+
+    public static function init() {
+        if (!isset(self::$s3)) {
+            $s3 = S3Client::factory([
+                "key" => Consts::$s3_key,
+                "secret" => Consts::$s3_secret
+            ]);
+
+            $s3->registerStreamWrapper();
+            self::$s3 = $s3;
+        }
+
+        return new S3();
+    }
+
+    private function __construct() {}
+
+    public function delete($name) {
+        return unlink("s3://" . Consts::$s3_bucket . "/" . $name);
+    }
+
+    public function download($name) {
+        return file_get_contents("s3://" . Consts::$s3_bucket . "/" . $name);
     }
 
     /**
@@ -25,7 +44,7 @@ class S3 {
         return:
             The uploaded file's url.
     */
-    public static function upload($file, $name, $metadata = []) {
+    public function upload($file, $name, $metadata = []) {
         preg_match("/^data:.+?\/(.+?);base64,.*/", $file, $matches);
         if (count($matches) == 2) {
             // file is a base 64 string
@@ -45,8 +64,6 @@ class S3 {
 
             return Consts::$s3_emulate_url . "/" . $name;
         } else {
-            $s3 = self::s3_conn();
-            
             $option = [
                 "Bucket" => Consts::$s3_bucket,
                 "Key" => $name,
@@ -57,7 +74,7 @@ class S3 {
             if ($metadata && count($metadata))
                 $option["Metadata"] = $metadata;
 
-            $result = $s3->putObject($option);
+            $result = self::$s3->putObject($option);
 
             return $result["ObjectURL"];
         }
