@@ -8,8 +8,8 @@
 
 if (!apc_load_constants("DB_FMTS")){
 	apc_define_constants("DB_FMTS", [
-	'FORMAT_CREATE_DB' 			 => "CREATE TABLE `%s`.`%s` ( %s PRIMARY KEY (`%s`)) ENGINE=InnoDB %s DEFAULT CHARSET=utf8;",
-	'FORMAT_CREATE_DB_MULTI_KEY' => "CREATE TABLE `%s`.`%s` ( %s CONSTRAINT %s PRIMARY KEY (%s)) ENGINE=InnoDB %s DEFAULT CHARSET=utf8;",
+	'FORMAT_CREATE_DB' 			 => "CREATE TABLE `%s`.`%s` ( %s PRIMARY KEY (`%s`)) ENGINE=InnoDB %s DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+	'FORMAT_CREATE_DB_MULTI_KEY' => "CREATE TABLE `%s`.`%s` ( %s CONSTRAINT %s PRIMARY KEY (%s)) ENGINE=InnoDB %s DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
 	'FORMAT_INSERT_DB' 			 => "INSERT %s INTO `%s` (%s) VALUES(%s);",
 	'FORMAT_UPDATE_DB'			 => "UPDATE `%s` SET %s WHERE `%s`=%s;",
 	]);
