@@ -171,8 +171,9 @@ class Render {
 						case 'echo':
 							$phpcode .= '<?= '.$val.' ?>';break;
 						case 'text':
-							$vstr = preg_split('/[,\s]+/', trim($val));
+							$vstr = preg_split('/,+/', trim($val));
 							if(count($vstr)>1){
+								$vstr = array_map(function($e){return trim($e);}, $vstr);
 								$phpcode .= '<?= T("'.join('","',$vstr).'"); ?>';break;
 							}else
 								$phpcode .= '<?= T("'.$val.'"); ?>';break;
