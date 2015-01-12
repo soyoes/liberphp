@@ -171,7 +171,11 @@ class Render {
 						case 'echo':
 							$phpcode .= '<?= '.$val.' ?>';break;
 						case 'text':
-							$phpcode .= '<?= T("'.$val.'"); ?>';break;
+							$vstr = preg_split('/[,\s]+/', trim($val));
+							if(count($vstr)>1){
+								$phpcode .= '<?= T("'.join('","',$vstr).'"); ?>';break;
+							}else
+								$phpcode .= '<?= T("'.$val.'"); ?>';break;
 						case 'var':
 							$phpcode .= '<?php '.$val.'; ?>';break;
 						case 'include':

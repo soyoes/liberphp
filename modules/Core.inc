@@ -142,6 +142,24 @@ function render_default_template(){
 }
 
 /**
+ * generate key string with specified length, and character set.
+ * @param  $len: length of the key
+ * @param  $chars: charactor set string
+ * @return a key string
+ * @example
+ *  keygen(64, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.;,-$%()!@")
+ */
+function keygen($len,$chars=false){
+	if(!isset($len))$len=16;
+	if(!$chars) $chars = "abcdefghijklmnopqrstuvwxyz0123456789_.;,-$%()!@";
+	$key="";$clen=strlen($chars);
+	for($i=0;$i<$len;$i++){
+		$key.=$chars[rand(0,$clen-1)];
+	}
+	return $key;
+}
+
+/**
  * send error code + message and quit
  * @param $code: HTTP error code. http://en.wikipedia.org/wiki/List_of_HTTP_status_codes
  * @param $contentType[OPTIONAL]: json | text[default] | html
@@ -239,9 +257,14 @@ function call($url, $method, $data = [], $header = [], $options = []) {
 /**
  * language support . get text by key from /conf/text.csv
  * @param $key : id, the first column of text.csv
+ * @param $args : other params to format the text
  * @example:
  *  Consts::$lang = "jp"; // set this in your liber.php	
  *  $txt = T("tasks.task_name"); 
+ *  
+ *  $txt = T("welcome_message", "YOUR NAME");  
+ *  	//given that welcome_message="Welcome %s", then the result will be "Welcome YOUR NAME"
+ * 	
  * 	// target file : /conf/text.csv
  * 	// id : tasks.task_name
  */
@@ -276,7 +299,19 @@ function T($key){
 		}return [];
 	};
 	$texts = Consts::$mode=="Developing"?$text_func("__TEXTS__"):cache_get("__TEXTS__", $text_func);
-	return isset($texts[$key][$lang])?$texts[$key][$lang]:"__ERR_WORD_NOT_EXISTS_($key,$lang)__, please check your /conf/text.csv";
+	if(isset($texts[$key][$lang])){
+		$text = $texts[$key][$lang];
+		if(str_has($text,"%")){
+			$args = array_slice(func_get_args(), 1);
+			$enc = mb_detect_encoding($text);
+			return $lang=="en"? vsprintf($text, $args) : 
+				mb_convert_encoding(vsprintf(mb_convert_encoding($text,"UTF-8",$enc), $args),$enc,"UTF-8");
+		}else
+			return $text;
+	}else{
+		error_log("__ERR_WORD_NOT_EXISTS_($key,$lang)__, please check your /conf/text.csv");
+		return null;
+	}
 }
 
 /**
