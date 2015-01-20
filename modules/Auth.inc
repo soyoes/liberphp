@@ -68,8 +68,10 @@ class Auth{
 		}
 		$bits = !isset($permission)?($auth["group"]==0?"8":"F"): $permission[$auth["group"]];//bits is hex string (len=1)
 		if($bits=="0") return $auth["group"]==0? 401 : 403;
-		$bits = str_pad(base_convert($bits, 16, 2),4,"0",STR_PAD_LEFT);//int -> 4 bit binary string
-		$bitIdx = array_search(strtolower($req->getMethod()), ['get','post','put','delete']);
+		$bits = base_convert($bits, 16, 2); //int -> 4 bit binary string
+		$bitIdx = array_search($req->getMethod(), ['get','post','put','delete']);
+		//$bits = str_pad(base_convert($bits, 16, 2),4,"0",STR_PAD_LEFT);
+		//$bitIdx = array_search(strtolower($req->getMethod()), ['get','post','put','delete']);
 		if($bits[$bitIdx]!="1") return $auth["group"]==0? 401 : 403;
 		return 200;
 	}
