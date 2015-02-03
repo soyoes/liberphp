@@ -564,11 +564,12 @@ class REQ {
 			return self::$resources;
 
 		self::$resources = cache_get("APP_RESOURCES", function($key){
-			//$lastTS = exec("cd ".APP_DIR."/;ls -lt | head -n 2 | tail -n 1 | awk '{print \$6,\$7,\$8}' ");
-			//$ver = strtotime($lastTS);
-			
 			$ver = exec("cd ".APP_DIR."/; git log -1 | head -n 1 | awk '{print \$2}' ");
-			//error_log("last TS=".$ver);
+			if(empty($ver)){
+				$lastTS = exec("cd ".APP_DIR."/;ls -lt | head -n 2 | tail -n 1 | awk '{print \$6,\$7,\$8}' ");
+				$ver = strtotime($lastTS);
+			}
+			error_log("last ver = ".$ver);
 			
 			$ctrldir = APP_DIR.__SLASH__."controllers";
 			exec("find $ctrldir",$res);
