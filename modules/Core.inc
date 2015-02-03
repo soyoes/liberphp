@@ -356,7 +356,7 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	$fmts = ['json','bson','text','html','csv'];
 	if(isset($parts["query"]))
 		parse_str($parts["query"],$params);
-	if(($host=="localhost"||$host=="127.0.0.1") && str_has($uri,"liber.php") && isset($params["__URL__"]) ){
+	if(($host=="localhost"||$host=="127.0.0.1") && (str_has($uri,"liber.php")||str_has($uri,"index.php")) && isset($params["__URL__"]) ){
 		$uri = $params["__URL__"];
 		unset($params["__URL__"]);
 	}
@@ -562,7 +562,11 @@ class REQ {
 	static function load_resources(){
 		if(self::$resources)
 			return self::$resources;
+
 		self::$resources = cache_get("APP_RESOURCES", function($key){
+			$lastTS = exec("cd ".APP_DIR."/;ls -lt | head -n 2 | tail -n 1 | awk '{print \$6,\$7,\$8}' ");
+			// error_log("last TS=".$lastTS);
+			
 			$ctrldir = APP_DIR.__SLASH__."controllers";
 			exec("find $ctrldir",$res);
 			$namespaces = []; $controllers = [];
@@ -585,6 +589,7 @@ class REQ {
 			},$res3));
 			$view_types = glob($vdir.__SLASH__."*",GLOB_ONLYDIR);
 			return [
+			"version"		=> strtotime($lastTS),
 			"namespaces" 	=> ds_remove(array_unique($namespaces), ""),
 			"controllers" 	=> ds_remove(array_unique($controllers), ""),
 			//"permission"	=> $permission, permission will be loaded in Auth::checkPermission
@@ -625,7 +630,8 @@ class REQ {
 	
 	function getRender($path=null){
 		if(!isset($this->render)){
-			$vtypes = self::load_resources()["view_types"];
+			$src = self::load_resources();
+			$vtypes = $src["view_types"];
 			self::$template_type = in_array(self::$client_type,$vtypes)? self::$client_type:"pc";
 			
 			$data = $this->data;
@@ -637,6 +643,7 @@ class REQ {
 			$render->assign('CLIENT_TYPE',self::$template_type);
 			$render->assign('controller',$data["controller"]);
 			$render->assign('action',$data["action"]);
+			$render->assign('APP_VER',$src["version"]);
 			$this->render_path = $path;
 			$this->render = $render;
 		}
