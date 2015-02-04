@@ -175,7 +175,13 @@ function error($code, $contentType="text", $reason=""){
 			break;
 		case "html":
 			header("Content-type: text/html; charset=utf-8");
-			//TODO
+			$req = REQ::getInstance();
+			$res = $req->load_resources();
+			$type = $req->getClientType();
+			if(in_array("$type/error_$code", $res["views"]))
+				render_html("error_$code.html",['code'=>$code,'msg'=>$msg,'reason'=>$reason]);
+			else
+				echo "<HTML><BODY><h1>$code ERROR</h1></BODY></HTML>";
 			break;
 		default://text
 			header("Content-type: text/plain; charset=utf-8");
