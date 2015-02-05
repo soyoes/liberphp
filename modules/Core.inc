@@ -165,9 +165,22 @@ function keygen($len,$chars=false){
  * @param $contentType[OPTIONAL]: json | text[default] | html
  * @param $reason: messages to send back to the client.
  */
-function error($code, $contentType="text", $reason=""){
+function error($code, $contentType, $reason=""){
 	$msg = Consts::$error_codes["".$code];
 	header("HTTP/1.1 $code $msg", FALSE);
+	$req = REQ::getInstance();
+	$src = $req->load_resources();
+	$type = $req->getClientType();
+	$hasHtml = in_array("$type/error_$code", $src["views"]);
+	if(isset($contentType)&&!in_array($contentType, ["html","json","text"])){
+		if(empty($reason)) {
+			$reason=$contentType;
+			$contentType=null;
+		}
+	}	
+	if(!$contentType)
+		$contentType=$hasHtml?"html":"text";
+	
 	switch($contentType){
 		case "json":
 			header("Content-type: application/json; charset=utf-8");
@@ -175,17 +188,13 @@ function error($code, $contentType="text", $reason=""){
 			break;
 		case "html":
 			header("Content-type: text/html; charset=utf-8");
-			$req = REQ::getInstance();
-			$res = $req->load_resources();
-			$type = $req->getClientType();
-			if(in_array("$type/error_$code", $res["views"]))
+			if($hasHtml)
 				render_html("error_$code.html",['code'=>$code,'msg'=>$msg,'reason'=>$reason]);
 			else
 				echo "<HTML><BODY><h1>$code ERROR</h1></BODY></HTML>";
 			break;
 		default://text
 			header("Content-type: text/plain; charset=utf-8");
-			$reason = $contentType=="text" ? $reason:$contentType;
 			echo "$code ERROR: $msg. $reason";
 			break;
 	}
