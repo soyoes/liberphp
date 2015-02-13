@@ -125,11 +125,18 @@ function mc_conn(){
  * @param $key:
  * @return : if failed return false
  */
-function mc_get($key){
+function mc_get($key, $nullHandler=null){
 	$conn = mc_conn();
 	$k = APP_NAME."::".$key;
-	if($conn)
-		return $conn->get($k);
+	if($conn){
+		$v = $conn->get($k);
+		if(!$v && isset($nullHandler)){
+			$r = $nullHandler($key);
+			if(isset($r)&&$r!=false){
+				mc_set($key, $r);
+			}
+		}
+	}	
 	return false;
 }
 
