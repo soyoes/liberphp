@@ -285,7 +285,10 @@ function call($url, $method, $data = [], $header = [], $options = []) {
  */
 function T($key){
 	$filename = null;
-	$lang = Consts::$lang;
+	$lang = isset($_REQUEST["@lang"])?$_REQUEST["@lang"]:
+					(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
+						substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):
+						Consts::$lang);
 	$text_func = function($fn){
 		$file = join(__SLASH__,[APP_DIR,"conf","text.csv"]);
 		if (file_exists($file)){
