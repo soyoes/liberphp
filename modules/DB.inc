@@ -52,7 +52,8 @@ function pdo_conn($opts=null, $pdoOpts=null){
  **/
 function pdo_query($pdo, $sql, $datas=[]) {
 	if(!$pdo || empty($sql))return false;
-	error_log($sql);
+	// error_log($sql);
+	// error_log(json_encode($datas));
 	$isQeury = str_starts(strtolower(trim($sql)), "select");
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
@@ -503,12 +504,17 @@ function db_update($table, $data, $opts=[]){
 	return db_query($sql,$data);
 }
 
-function db_migrate($table){
+/**
+	@param $schemaName : schema file name, conf/schemas/SCHEMA_NAME.ini
+	@param $tableName : table name to create, default name = schemaName
+ */
+function db_migrate($schemaName, $tableName=null){
 	$dbn = Consts::$db_name;
-	$sql = sprintf("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s';", $dbn, $table);
+	if(empty($tableName))$tableName=$schemaName;
+	$sql = sprintf("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s';", $dbn, $tableName);
 	$res = db_count($sql,[], false);
 	if ($res<=0 ){//schema doesn't exist
-		$schema_def = db_schema($table);
+		$schema_def = db_schema($schemaName);
 		$schema = $schema_def["schema"];
 		$pk = $schema_def["general"]["pk"];
 		$colStmt = "";
@@ -524,9 +530,9 @@ function db_migrate($table){
 			$parts = preg_split("/[\|\+,]/", $pk);
 			$pkName = join('_',$parts);
 			$keys = '`'.join('`,`',$parts)."`";
-			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, $dbn, $table, $colStmt, $pkName, $keys, $incStmt);
+			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, $dbn, $tableName, $colStmt, $pkName, $keys, $incStmt);
 		}else{
-			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $table, $colStmt, $pk, $incStmt);
+			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $tableName, $colStmt, $pk, $incStmt);
 		}
 		$res = db_query($sql);
 		
@@ -537,14 +543,14 @@ function db_migrate($table){
 				$name = "index_".preg_replace('/[\+\.\|]/', '_',$cols);
 				$cols = preg_replace('/[\+\.\|]/', '`,`',$cols);
 				$desc = $desc=="unique"?"UNIQUE ":" ";
-				$sql = "CREATE ${desc}INDEX index_$name ON `$table` (`$cols`)";
+				$sql = "CREATE ${desc}INDEX index_$name ON `$tableName` (`$cols`)";
 				echo $sql."\n";
 				db_query($sql);
 			}
 		}
 		
 	}
-	echo "Created ".$table."</br>\n";
+	echo "Created ".$tableName."</br>\n";
 }
 
 
