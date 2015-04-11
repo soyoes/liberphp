@@ -75,7 +75,9 @@ function pdo_count($pdo, $sql, $datas=[], $col=0){
 function pdo_import($pdo, $table, $datas, $regName="regAt", $updName="updAt"){
 	if(!isset($pdo) ||!isset($table) || count($datas)==0)
 		return false;
-	$schema = db_schema($table)["schema"];
+	list($table,$schemaname) = explode("@",$table);
+	if(empty($schemaname)) $schemaname = $table;
+	$schema = db_schema($schemaname)["schema"];
 	$cols = [];
 	foreach ($datas as $d){
 		$cols = array_unique(array_merge($cols,array_keys($d)));
@@ -118,7 +120,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	if(!isset($pdo) || !isset($table) || !is_hash($data) || empty($data))return false;
 	$regName = Consts::$schema_reg;
 	$updName = Consts::$schema_upd;
-	$schema_def = db_schema($table);
+	list($table,$schemaname) = explode("@",$table);
+	if(empty($schemaname)) $schemaname = $table;
+	$schema_def = db_schema($schemaname);
 	$schema = $schema_def["schema"];
 	$pk = $schema_def["general"]["pk"];
 	$pks=[];$qo=null;$isUpdate=false;
@@ -220,7 +224,9 @@ function pdo_find($pdo,$table, $opts=[], $withCount=false){
 function pdo_exists($pdo, $table, $id){
 	if(!isset($pdo) ||!isset($table) || !isset($id))
 		return false;
-	$pk = db_schema($table)["general"]["pk"];
+	list($table,$schemaname) = explode("@",$table);
+	if(empty($schemaname)) $schemaname = $table;
+	$pk = db_schema($schemaname)["general"]["pk"];
 	$entity =pdo_count($pdo, "select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
 	return $entity>0;
 }
@@ -428,9 +434,11 @@ function db_import($table, $datas){
 function db_make_query($table, $opts=[], $omit=[]){
 	db_init_filters();
 	if(!isset($table))return false;
+	list($table,$schemaname) = explode("@",$table);
+	if(empty($schemaname)) $schemaname = $table;
 	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :"`".join("`,`", $opts['fields'])."`")
 		 : (isset($opts['fields'])? '`'.preg_replace('/[`\s]*,[`\s]*/',"`,`",$opts['fields']).'`':'*');
-	$schemaDef = db_schema($table);
+	$schemaDef = db_schema($schemaname);
 	$pk = $schemaDef["general"]["pk"];
 	$schema = $schemaDef["schema"];
 	$data = [];
@@ -494,7 +502,9 @@ function db_update($table, $data, $opts=[]){
 	if(!isset($table) || empty($data) || !is_hash($data))
 		return false;
 	$vStrs = [];
-	$schema = db_schema($table)["schema"];
+	list($table,$schemaname) = explode("@",$table);
+	if(empty($schemaname)) $schemaname = $table;
+	$schema = db_schema($schemaname)["schema"];
 	foreach($data as $k=>$v){
 		$vStrs[]="`$k`=".db_v($v, $schema[$k]);
 	} 
@@ -540,10 +550,10 @@ function db_migrate($schemaName, $tableName=null){
 		$index = $schema_def["index"];
 		if(!empty($index)){
 			foreach ($index as $cols => $desc){
-				$name = "index_".preg_replace('/[\+\.\|]/', '_',$cols);
+				$name = "idx_".preg_replace('/[\+\.\|]/', '_',$cols);
 				$cols = preg_replace('/[\+\.\|]/', '`,`',$cols);
 				$desc = $desc=="unique"?"UNIQUE ":" ";
-				$sql = "CREATE ${desc}INDEX index_$name ON `$tableName` (`$cols`)";
+				$sql = "CREATE ${desc}INDEX $name ON `$tableName` (`$cols`)";
 				echo $sql."\n";
 				db_query($sql);
 			}
