@@ -138,7 +138,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		try{
 			$ext = pdo_find($pdo, $table, $qo);
 		}catch(Exception $e){
-			echo $e->getMessage()."\n";
+			error_log($e->getMessage()."\n");
 		}
 		$isUpdate = !empty($ext);
 	} else{
@@ -519,6 +519,7 @@ function db_update($table, $data, $opts=[]){
 	@param $tableName : table name to create, default name = schemaName
  */
 function db_migrate($schemaName, $tableName=null){
+	$isCLI = (php_sapi_name() === 'cli');
 	$dbn = Consts::$db_name;
 	if(empty($tableName))$tableName=$schemaName;
 	$sql = sprintf("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s';", $dbn, $tableName);
@@ -554,13 +555,15 @@ function db_migrate($schemaName, $tableName=null){
 				$cols = preg_replace('/[\+\.\|]/', '`,`',$cols);
 				$desc = $desc=="unique"?"UNIQUE ":" ";
 				$sql = "CREATE ${desc}INDEX $name ON `$tableName` (`$cols`)";
-				echo $sql."\n";
+				if($isCLI) echo $sql."\n";
 				db_query($sql);
 			}
 		}
 		
 	}
-	echo "Created ".$tableName."</br>\n";
+	if($isCLI)
+		echo "Created ".$tableName."</br>\n";
+	else return true;
 }
 
 
