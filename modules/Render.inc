@@ -43,7 +43,7 @@ class Render {
 	 * print to screen
 	 * 
 	 */
-	function render($file,$data=[],$layout=null){
+	function render($file,$data=[],$layout=null,$renderOnly=false){
 		$template = isset($layout)? $layout : $this->layout;
 		$key = 'template-'. REQ::getTemplateType() . "-" .$template;
 		$wrapper_code = cache_get($key, function($f){
@@ -65,17 +65,24 @@ class Render {
 		$_REQUEST[self::$var_prefix."TMP_DATA"] = $this->data;
 		extract($this->data, EXTR_PREFIX_ALL, self::$var_prefix);
 		$r = $this->render_file($file,$wrapper_code);
-		if($r) include($r);
-		/*
-		ob_start(); include($r);
-		$output = ob_get_contents();
-		REQ::write($output, "html");
-		ob_end_clean();
-		flush();
-		*/
+
+		$output = null;
+		if($r){
+			if($renderOnly){
+				ob_start(); 
+				include($r);
+				$output = ob_get_contents();
+				// REQ::write($output, "html");
+				ob_end_clean();
+				// flush();
+			}else{
+				include($r);
+			}
+		}
 		unset($this->data);
 		unset($data);
-
+		if($output)
+			return $output;
 	}
 	
 	/**
