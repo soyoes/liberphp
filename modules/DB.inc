@@ -431,7 +431,7 @@ function db_import($table, $datas){
  * @param $omit : array, fields in opts to omit.
  * @return array or false
  */
-function db_make_query($table, $opts=[], $omit=[]){
+function db_make_query(&$table, $opts=[], $omit=[]){
 	db_init_filters();
 	if(!isset($table))return false;
 	list($table,$schemaname) = explode("@",$table);
