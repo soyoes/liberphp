@@ -127,7 +127,7 @@ class Model{
 	}
 	
 	public function exists($pk){
-		return db_exists($this-table,$pk);
+		return db_exists($this->table,$pk);
 	}
 
 	/**
