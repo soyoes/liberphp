@@ -143,7 +143,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		$isUpdate = !empty($ext);
 	} else{
 		$id = isset($data[$pk]) ? $data[$pk] : null;
-		$isUpdate = isset($id) && pdo_exists($pdo, $table, $id);
+		$isUpdate = isset($id) && pdo_exists($pdo, $table."@".$schemaname, $id);
 	}
 	$sql = "";
 	if(array_key_exists($updName,$schema) && !isset($data[$updName]))
@@ -164,7 +164,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		if(empty($pks)){
 			$sql = sprintf(FORMAT_UPDATE_DB, $table, $colStmt, $pk, db_v($id));
 		}else{
-			list($colStr,$optStr,$qrdatas) = db_make_query($table, $qo);
+			list($colStr,$optStr,$qrdatas) = db_make_query($table."@".$schemaname, $qo);
 			foreach ($qrdatas as $qk=>$qv){
 				$qdatas[$qk]= $qv;
 			}

@@ -373,7 +373,8 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	
 	$fmts = ['json','bson','text','html','csv'];
 	if(isset($parts["query"]))
-		parse_str($parts["query"],$params);
+		parse_str(str_replace('&amp;', '&', $parts['query']),$params);
+
 	if(($host=="localhost"||$host=="127.0.0.1") && (str_has($uri,"liber.php")||str_has($uri,"index.php")) && isset($params["__URL__"]) ){
 		$uri = $params["__URL__"];
 		unset($params["__URL__"]);
