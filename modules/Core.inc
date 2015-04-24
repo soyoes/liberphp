@@ -270,6 +270,30 @@ function call($url, $method, $data = [], $header = [], $options = []) {
 }
 
 /**
+ * exec an asynced backend task after send msg to the client.
+ * @param $msg : msg/html/json to send to the client.
+ * @param $func : the task to be exec background.
+ * @example:
+ 	async("1", function($a,$b){sleep($a);error_log($b);}, 3, "Sleeped 3 seconds");
+ */
+function async($msg,$func){
+	ob_end_clean();
+	header("Connection: close");
+	ignore_user_abort(true); // just to be safe
+	ob_start();
+
+	echo $msg;
+
+	$size = ob_get_length();
+	header("Content-Length: $size");
+	ob_end_flush(); 
+	flush();
+
+	$args = array_slice(func_get_args(), 2);
+	call_user_func_array ($func, $args);
+}
+
+/**
  * language support . get text by key from /conf/text.csv
  * @param $key : id, the first column of text.csv
  * @param $args : other params to format the text
