@@ -319,29 +319,39 @@ function T($key){
 			$lines = preg_split('/[\r\n]+/',file_get_contents($file));
 			$idx = 0;
 			$res = [];$langs = [];
-			foreach ($lines as $line) {
-				$cols = preg_split('/[\t,]/',$line);
-				if($idx++==0){
-					if($cols[0]!='id'){
-						error_log("Language File Error: the first column of text.csv must have a name of 'id' ");
-						return [];
+
+			if (($handle = fopen($file, "r")) !== FALSE) {
+				$max_len = 0; // unlimited
+				$delimiter = ",";
+				try {
+					while (($cols = fgetcsv($handle, $max_len, $delimiter)) !== FALSE) {
+						if($idx++==0){
+							if($cols[0]!='id'){
+								error_log("Language File Error: the first column of text.csv must have a name of 'id' ");
+								return [];
+							}
+							$langs = $cols;
+							array_shift($langs);
+							continue;
+						}else{
+							$c = 1;
+							$id = $cols[0];
+							$res[$id] = [];
+							foreach ($langs as $l) 
+								$res[$id][$l] = $cols[$c]?$cols[$c++]:"";
+						}
 					}
-					$langs = $cols;
-					array_shift($langs);
-					continue;
-				}else{
-					$c = 1;
-					$id = $cols[0];
-					$res[$id] = [];
-					foreach ($langs as $l) 
-						$res[$id][$l] = $cols[$c]?$cols[$c++]:"";
+				} catch(Exception $e) {
+					error_log("Language File Error: " . $e->getMessage());
 				}
 			}
+			fclose($handle);
 			return $res;
 		}return [];
 	};
 	$texts = Consts::$mode=="Developing"?$text_func("__TEXTS__"):cache_get("__TEXTS__", $text_func);
-	if(isset($texts[$key][$lang])){
+	$lang = isset($texts[$key][$lang]) ? $lang : (isset($texts[$key][Consts::$lang]) ? Consts::$lang : false);
+	if($lang){
 		$text = $texts[$key][$lang];
 		if(str_has($text,"%")){
 			$args = array_slice(func_get_args(), 1);
