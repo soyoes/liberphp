@@ -223,19 +223,28 @@ function pdo_find($pdo,$table, $opts=[], $withCount=false){
 			$col = $def['column'];
 			if(!isset($ds[$col]))
 				$ds[$col] = array_map(function($e) use($col){return $e[$col];}, $res);
-			$condition = ['fields'=>$def['fields']];
+			$condition = empty($def['query'])?[]:$def['query'];
+			$condition['fields'] = $def['fields'];
+			$tc = $def['target_column'];
 			if(count($ds[$col])>1){
-				$condition[$def['target_column'].'@in']=$ds[$col];
+				$condition['$tc@in']=$ds[$col];
 			}else
-				$condition[''.$def['target_column']]=$ds[$col][0];
+				$condition[$tc]=$ds[$col][0];
 			$re = pdo_find($pdo,$def['table'],$condition);
-			$extras[$conn] = arr2hash($re, $def['target_column']);
+			$extras[$conn]=[];
+			foreach ($re as $r) {
+				if(!isset($extras[$conn]["$r[$tc]"])) 
+					$extras[$conn]["$r[$tc]"]=[];	
+				$extras[$conn]["$r[$tc]"][] = $r;
+			}
+			//$extras[$conn] = arr2hash($re, $def['target_column']);
 		}
 		foreach ($res as &$r) {
 			foreach ($conns as $conn => $def) {
-				$r[$conn] = $extras[$conn][''.$def['target_column']];
-				if(!in_array(''.$def['target_column'], $def['fields']))
-					unset($r[$conn][''.$def['target_column']]);
+				$tc = $def['target_column'];
+				$r[$conn] = $extras[$conn]["".$r[$def['column']]];
+				if($def["fields"]!="*" && !in_array($tc, $def['fields']))
+					unset($r[$conn][$tc]);
 			}
 		}
 	}
@@ -470,12 +479,13 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 	$pk = $schemaDef['general']['pk'];
 	$schema = $schemaDef['schema'];
 	$connect = $schemaDef['connect'];
+	$connNames = array_keys($connect);
 	$data = [];
 	$conns = [];
 
-
 	//solve connect query
-	if(is_hash($opts) && !empty($opts['fields']) && preg_match('/[\{\}\.]+/',$opts['fields'])){ //query specified tables.columns
+	if(is_hash($opts) && !empty($opts['fields']) && 
+		(preg_match('/[\{\}\.]+/',$opts['fields'])) || preg_match('/\b('.join('|',$connNames).')\b/', $opts['fields']) ){ //query specified tables.columns
 		//STEP 1 : solve connName{col1,col2...}
 		preg_match_all('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', $opts['fields'], $ma);
 		if(!empty($ma['tbl'])){
@@ -490,12 +500,11 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 		}
 		//STEP 2 : solve connName,connName1.col1,connName2.col2
 		$cols =  explode(',',$opts['fields']);
-		$connNames = array_keys($connect);
 		$ncols = [];
 		foreach ($cols as $f) {
 			$f = trim($f);
 			if(in_array($f, $connNames)){
-				$conns[$f] = ['fields'=>'*']+$connect[$tbl];
+				$conns[$f] = ['fields'=>'*']+$connect[$f];
 			}else if(str_has($f, '.')){
 				list($tbl, $col) = explode('.', $f);
 				if(in_array($tbl, $connNames)){
@@ -514,6 +523,8 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 			$colStr = is_string($opts['fields'])? explode(',',preg_replace('/[`\s]*,[`\s]*/',",",$opts['fields'])):$opts['fields'];
 			$colStr = array_filter($colStr, function($e) use($schema, $omit){return array_key_exists($e, $schema) && !in_array($e,$omit);});
 			$colStr = "`".join("`,`", $colStr)."`";
+		}else if($colStr=='*' && !empty($schemaDef['general']['fields'])){
+			$colStr = '`'.str_replace(',', '`,`', $schemaDef['general']['fields']).'`';
 		}
 	}
 		
@@ -525,17 +536,27 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 			unset($opts['@id']);unset($opts['limit']);
 		}
 		foreach ($opts as $k => $v){
-			if($k=="@id")$k=$pk;
-			list($k,$cmd) = explode("@",$k);
-			$keys = array_filter(preg_split('/\|/',$k), function($k) use($schema, $omit){
-				return array_key_exists($k, $schema) && !in_array($k,$omit);
-			});
-			if(!empty($keys)){
-				$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
-				$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
-				$func = Consts::$db_query_filters[$cmd];
-				$vStr = $func(join("|", $keys), $v, $data);
-				if($vStr) $optStr []= $vStr;
+			preg_match_all('/^(?<tbl>[\w\d_]+)\./i',$k,$ma);
+			if(!empty($ma['tbl'])){//connection query
+				$tbl = $ma['tbl'][0];
+				$col = substr($k, strlen($tbl)+1);
+				if(empty($conns[$tbl])) continue;
+				if(!isset($conns[$tbl]['query']))
+					$conns[$tbl]['query'] = [];
+				$conns[$tbl]['query'][$col] = $v;
+			}else{
+				if($k=="@id")$k=$pk;
+				list($k,$cmd) = explode("@",$k);
+				$keys = array_filter(preg_split('/\|/',$k), function($k) use($schema, $omit){
+					return array_key_exists($k, $schema) && !in_array($k,$omit);
+				});
+				if(!empty($keys)){
+					$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
+					$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
+					$func = Consts::$db_query_filters[$cmd];
+					$vStr = $func(join("|", $keys), $v, $data);
+					if($vStr) $optStr []= $vStr;
+				}	
 			}
 		}
 		$optStr =  empty($optStr) ? "": " WHERE ".join(" AND ", $optStr);
