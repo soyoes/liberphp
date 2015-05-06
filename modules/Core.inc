@@ -586,13 +586,22 @@ class REQ {
 	 * @param $ua : userAgent
 	 */
 	static function dispatch($uri, $method, $params=[], $ua=""){
+		//check cross domain request first.
+		if(strtoupper($_SERVER['REQUEST_METHOD'])=="OPTIONS" && strlen(Consts::$cross_domain_methods)>0){
+			header("HTTP/1.1 200 OK");
+			header('Content-type: application/json');
+			header('Access-Control-Allow-Origin: *');
+			header('Access-Control-Allow-Methods: '.preg_replace('/\s*,\s*/', ', ', Consts::$cross_domain_methods));
+			exit;
+		}
+
 		$req = new REQ();
 		$ua = parse_user_agent($ua);
 		self::$client_type = $ua["type"];
 		self::$client_bot = $ua["bot"];
 		$req->data = parse_uri($uri, $method, $params, $ua);
 		$req->params = $req->data["params"];
-		
+
 		if(Consts::$session_enable && !isset($_SESSION))
 			Session::start();
 		//var_dump($req->data);
@@ -622,7 +631,6 @@ class REQ {
 				$lastTS = exec("cd ".APP_DIR."/;ls -lt | head -n 2 | tail -n 1 | awk '{print \$6,\$7,\$8}' ");
 				$ver = strtotime($lastTS);
 			}
-			error_log("last ver = ".$ver);
 			
 			$ctrldir = APP_DIR.__SLASH__."controllers";
 			exec("find $ctrldir",$res);
@@ -729,10 +737,11 @@ class REQ {
 		if($this->dispatched===true)return;
         if (Consts::$mode=="Developing") {
             error_log("URI: " . $this->getURI());
+            error_log("METHOD: " . $_SERVER['REQUEST_METHOD']);
             error_log("PARAMETERS: " . json_encode($this->params));
         }
-        
-		try{
+
+        try{
 			$filters = Consts::$filters;
 			$filterNames = array_keys($filters);
 			$size = count($filterNames);
@@ -744,7 +753,7 @@ class REQ {
 				if($auth == 401)  return error(401, "Permission ERROR : Sorry, You are not permited to do that.");
 				if($auth == 403)  return error(403);
 			}
-			
+
 			for ($token=$size*(-1); $token<=$size; $token++){
 				if(true===$this->interrupted)
 					break;

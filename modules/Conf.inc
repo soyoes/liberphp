@@ -18,6 +18,8 @@ class Conf{
 	static $db_user				= "root";
 	static $db_pass				= "root";
 
+	static $cross_domain_methods = "GET, POST, PUT, DELETE, OPTIONS";
+
 /**
     when $s3_emulate is true:
         S3 emulation mode.
