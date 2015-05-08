@@ -52,8 +52,11 @@ function pdo_conn($opts=null, $pdoOpts=null){
  **/
 function pdo_query($pdo, $sql, $datas=[]) {
 	if(!$pdo || empty($sql))return false;
-	// error_log($sql);
-	// error_log(json_encode($datas));
+	error_log($sql);
+	error_log(json_encode($datas));
+
+
+	
 	$isQeury = str_starts(strtolower(trim($sql)), "select");
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
@@ -210,13 +213,45 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 }
 function pdo_find($pdo,$table, $opts=[], $withCount=false){
 	if(!$pdo || !$table)return false;
-	list($colStr, $optStr,$datas) = db_make_query($table, $opts);
+	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts);
 	$sql = "SELECT ".$colStr." FROM ".$table.$optStr;
 	$res = pdo_query($pdo, $sql, $datas, $opts["useCache"]);
+	if(!empty($conns) && !empty($res)){
+		$ds = [];
+		$extras = [];
+		foreach ($conns as $conn => $def) {
+			$col = $def['column'];
+			if(!isset($ds[$col]))
+				$ds[$col] = array_map(function($e) use($col){return $e[$col];}, $res);
+			$condition = empty($def['query'])?[]:$def['query'];
+			$condition['fields'] = $def['fields'];
+			$tc = $def['target_column'];
+			if(count($ds[$col])>1){
+				$condition["$tc@in"]=join(',',$ds[$col]);
+			}else
+				$condition[$tc]=$ds[$col][0];
+			$re = pdo_find($pdo,$def['table'],$condition);
+			$extras[$conn]=[];
+			foreach ($re as $r) {
+				if(!isset($extras[$conn]["$r[$tc]"])) 
+					$extras[$conn]["$r[$tc]"]=[];	
+				$extras[$conn]["$r[$tc]"][] = $r;
+			}
+			//$extras[$conn] = arr2hash($re, $def['target_column']);
+		}
+		foreach ($res as &$r) {
+			foreach ($conns as $conn => $def) {
+				$tc = $def['target_column'];
+				$r[$conn] = $extras[$conn]["".$r[$def['column']]];
+				if($def["fields"]!="*" && !in_array($tc, $def['fields']))
+					unset($r[$conn][$tc]);
+			}
+		}
+	}
 	if($withCount){
 		$sql = "SELECT count(*) FROM ".$table.preg_replace("/ORDER BY\s*(.*)\s*([LIMIT .*]*)/", '${3}',$optStr);
 		$cnt = pdo_count($pdo,$sql, $datas, $opts["useCache"]);
-		return ["count"=>$cnt,"result"=>$res];
+		$res = ["count"=>$cnt,"result"=>$res];
 	}else{
 		return $res;
 	}
@@ -434,14 +469,65 @@ function db_import($table, $datas){
 function db_make_query(&$table, $opts=[], $omit=[]){
 	db_init_filters();
 	if(!isset($table))return false;
+	//tablename may be different with schema's
 	list($table,$schemaname) = explode("@",$table);
 	if(empty($schemaname)) $schemaname = $table;
-	$colStr =  is_array($opts['fields'])? (count($opts['fields'])==0? "*" :"`".join("`,`", $opts['fields'])."`")
-		 : (isset($opts['fields'])? '`'.preg_replace('/[`\s]*,[`\s]*/',"`,`",$opts['fields']).'`':'*');
-	$schemaDef = db_schema($schemaname);
-	$pk = $schemaDef["general"]["pk"];
-	$schema = $schemaDef["schema"];
+
+	$colStr = '*'; //default, query all cols of a single table.
+	$schemas = db_schema();
+	$schemaDef = $schemas[$schemaname];
+	$pk = $schemaDef['general']['pk'];
+	$schema = $schemaDef['schema'];
+	$connect = $schemaDef['connect'];
+	$connNames = array_keys($connect);
 	$data = [];
+	$conns = [];
+
+	//solve connect query
+	if(is_hash($opts) && !empty($opts['fields']) && 
+		(preg_match('/[\{\}\.]+/',$opts['fields'])) || preg_match('/\b('.join('|',$connNames).')\b/', $opts['fields']) ){ //query specified tables.columns
+		//STEP 1 : solve connName{col1,col2...}
+		preg_match_all('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', $opts['fields'], $ma);
+		if(!empty($ma['tbl'])){
+			$i=0;
+			foreach ($ma['tbl'] as $tbl) {
+				if(!isset($connect[$tbl]))continue;//NO DEFINE FOR THIS CONNECTION
+				if(!isset($conns[$tbl])) $conns[$tbl] = ['fields'=>[$connect[$tbl]['target_column']]]+$connect[$tbl];
+				$conns[$tbl]['fields'] = array_merge($conns[$tbl]['fields'],explode(',',$ma['cols'][$i++])) ;
+			}
+			$opts['fields'] = preg_replace('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', '', $opts['fields']);
+		}
+		//STEP 2 : solve connName,connName1.col1,connName2.col2
+		$cols =  explode(',',$opts['fields']);
+		$ncols = [];
+		foreach ($cols as $f) {
+			$f = trim($f);
+			if(in_array($f, $connNames)){
+				$conns[$f] = ['fields'=>'*']+$connect[$f];
+			}else if(str_has($f, '.')){
+				list($tbl, $col) = explode('.', $f);
+				if(in_array($tbl, $connNames)){
+					if(!isset($conns[$tbl])) $conns[$tbl] = ['fields'=>[$connect[$tbl]['target_column']]]+$connect[$tbl];
+					$conns[$tbl]['fields'][] = $col;	
+				}
+			}else{
+				if($f=='*' || array_key_exists($f, $schema))
+					$ncols[]=$f;
+			}
+		}
+		//$opts['fields']= join(',',$ncols);
+		$colStr = join(',',$ncols);
+	}else{
+		if(!empty($opts['fields']) && $opts['fields']!='*'){
+			$colStr = is_string($opts['fields'])? explode(',',preg_replace('/[`\s]*,[`\s]*/',",",$opts['fields'])):$opts['fields'];
+			$colStr = array_filter($colStr, function($e) use($schema, $omit){return array_key_exists($e, $schema) && !in_array($e,$omit);});
+			$colStr = "`".join("`,`", $colStr)."`";
+		}else if($colStr=='*' && !empty($schemaDef['general']['fields'])){
+			$colStr = '`'.str_replace(',', '`,`', $schemaDef['general']['fields']).'`';
+		}
+	}
+		
+	
 	if(is_hash($opts)){
 		$optStr = [];
 		// fix: When "@id" and "id" both exist.
@@ -449,17 +535,27 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 			unset($opts['@id']);unset($opts['limit']);
 		}
 		foreach ($opts as $k => $v){
-			if($k=="@id")$k=$pk;
-			list($k,$cmd) = explode("@",$k);
-			$keys = array_filter(preg_split('/\|/',$k), function($k) use($schema, $omit){
-				return array_key_exists($k, $schema) && !in_array($k,$omit);
-			});
-			if(!empty($keys)){
-				$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
-				$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
-				$func = Consts::$db_query_filters[$cmd];
-				$vStr = $func(join("|", $keys), $v, $data);
-				if($vStr) $optStr []= $vStr;
+			preg_match_all('/^(?<tbl>[\w\d_]+)\./i',$k,$ma);
+			if(!empty($ma['tbl'])){//connection query
+				$tbl = $ma['tbl'][0];
+				$col = substr($k, strlen($tbl)+1);
+				if(empty($conns[$tbl])) continue;
+				if(!isset($conns[$tbl]['query']))
+					$conns[$tbl]['query'] = [];
+				$conns[$tbl]['query'][$col] = $v;
+			}else{
+				if($k=="@id")$k=$pk;
+				list($k,$cmd) = explode("@",$k);
+				$keys = array_filter(preg_split('/\|/',$k), function($k) use($schema, $omit){
+					return array_key_exists($k, $schema) && !in_array($k,$omit);
+				});
+				if(!empty($keys)){
+					$cmd = !isset($cmd)||$cmd=="" ? "=":$cmd;
+					$cmd = strpbrk($cmd, 'begilmnqt') !==false? Consts::$query_filter_names[$cmd]:$cmd;
+					$func = Consts::$db_query_filters[$cmd];
+					$vStr = $func(join("|", $keys), $v, $data);
+					if($vStr) $optStr []= $vStr;
+				}	
 			}
 		}
 		$optStr =  empty($optStr) ? "": " WHERE ".join(" AND ", $optStr);
@@ -471,7 +567,8 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 	}else {
 		$optStr = !empty($opts)? " WHERE ". $opts : "";
 	}
-	return [$colStr,$optStr,$data];
+	return [$colStr,$optStr,$data,$conns];
+
 }
 
 function db_exists($table, $id){
@@ -589,17 +686,38 @@ function db_save($table, $data, $returnId=false, $bson=false){
 /**
  * load schema configuration data from SCHEMA_DIR/$schemaName.ini using APC cache.
  * */
-function db_schema($schemaName){
-	$schemaDef = cache_get("SCHEMA_$schemaName", function($key){
-		$schemaname = str_replace("SCHEMA_","",$key);
-		$schemaDef = @parse_ini_file(APP_DIR.__SLASH__."conf".__SLASH__."schemas".__SLASH__.$schemaname.".ini", true);
-		if(!$schemaDef){
-			//error_log("schema=".LIBER_DIR."common/schemas/".$schemaname.".ini");
-			$schemaDef = @parse_ini_file(LIBER_DIR."common/schemas/".str_replace("liber_","",$schemaname).".ini", true);
+function db_schema($schemaName=null){
+	$schemas = cache_get('DB_SCHEMAS', function($key){ 
+		$dir = APP_DIR.__SLASH__.'conf'.__SLASH__.'schemas';
+		exec("find $dir",$files);
+		$files = array_unique($files);
+		$schemas = [];
+		$conns = [];
+		foreach ($files as $f) {
+			if(!str_ends($f, '.ini')) continue;
+			$n = strtolower(preg_replace(['/^'.str_replace('/','\/',APP_DIR.__SLASH__.'conf'.__SLASH__.'schemas').'/','/\.ini$/','/^\//'],['','',''], $f));
+			$s = parse_ini_file($f, true);
+			if(!empty($s['connect'])){
+				$conns = [];
+				foreach ($s['connect'] as $ck => $cv) {
+					preg_match_all('/(?P<col>[\w\d_]+)\s*=\s*(?P<tbl>[\w\d_]+)\.(?P<tarCol>[\w\d_]+)/', $cv, $mc);
+					if(!empty($mc['col'])&&!empty($mc['tbl'])&&!empty($mc['tarCol'])){
+						$conns[$ck] = [
+							'column' 		=> $mc['col'][0],
+							'table' 		=> $mc['tbl'][0],
+							'target_column' => $mc['tarCol'][0],
+						];
+					}else{
+						throw 'DB ERR: wrong format in $f.ini [connect], should be [MAPPING_NAME = "COLUMN_NAME = TABLE_NAME.COLUMN_NAME"]';
+					}
+				}
+				$s['connect'] = $conns;
+			}
+			$schemas[$n] = $s;
 		}
-		return $schemaDef;
-	},false);
-	return $schemaDef;
+		return $schemas;
+	});
+	return isset($schemaName)? $schemas[$schemaName]:$schemas;
 }
 
 /**TODO test
