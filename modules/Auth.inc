@@ -49,12 +49,13 @@ class Auth{
 			$permission = isset($schemaDef["general"]["permission"])?$schemaDef["general"]["permission"]:"";
 		}else{
 			$ctl = $req->getController();
-			$tree = cache_get('APP_PERMISSION_'.$ctl, function($key){
+			$ns  = $req->getNamespace();
+			$tree = cache_get('APP_PERMISSION_'.$ns."_".$ctl, function($key){
 				$ctrldir = APP_DIR.__SLASH__.'controllers'.__SLASH__;
 				$req = REQ::getInstance();
 				$ns = $req->getNamespace();
 				$controller_dir = !empty($ns) ? $ctrldir.$ns.'/':$ctrldir;
-				$fp = $controller_dir.str_replace('APP_PERMISSION_',"",$key).".inc";
+				$fp = $controller_dir.str_replace('APP_PERMISSION_'.$ns."_","",$key).".inc";
 				$tree = fs_src_tree($fp);
 				$permission = ["@file" => $tree["annotations"]["permission"]];
 				foreach ($tree["functions"] as $fn => $ftr){
