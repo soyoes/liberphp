@@ -227,7 +227,7 @@ function pdo_find($pdo,$table, $opts=[], $withCount=false){
 			$condition['fields'] = $def['fields'];
 			$tc = $def['target_column'];
 			if(count($ds[$col])>1){
-				$condition['$tc@in']=$ds[$col];
+				$condition["$tc@in"]=join(',',$ds[$col]);
 			}else
 				$condition[$tc]=$ds[$col][0];
 			$re = pdo_find($pdo,$def['table'],$condition);
@@ -493,8 +493,7 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 			foreach ($ma['tbl'] as $tbl) {
 				if(!isset($connect[$tbl]))continue;//NO DEFINE FOR THIS CONNECTION
 				if(!isset($conns[$tbl])) $conns[$tbl] = ['fields'=>[$connect[$tbl]['target_column']]]+$connect[$tbl];
-				//$conns[$tbl]['fields'] = array_merge($conns[$tbl]['fields'],$ma['cols']);
-				$conns[$tbl]['fields'] += explode(',',$ma['cols'][$i++]);
+				$conns[$tbl]['fields'] = array_merge($conns[$tbl]['fields'],explode(',',$ma['cols'][$i++])) ;
 			}
 			$opts['fields'] = preg_replace('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', '', $opts['fields']);
 		}
