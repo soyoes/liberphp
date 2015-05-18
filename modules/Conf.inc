@@ -83,3 +83,29 @@ class Conf{
 		],
 	];
 }
+
+switch (Conf::$mode) {
+	case 'Developing':
+		Conf::$db_engine	= "mysql";
+		Conf::$db_host		= "127.0.0.1";
+		Conf::$db_port		= "3306";
+		Conf::$db_name		= "hug";
+		Conf::$db_user		= "root";
+		Conf::$db_pass		= "root";
+		break;
+	case 'Staging':
+		Conf::$db_engine	= "mysql";
+		Conf::$db_host		= "127.0.0.1";
+		Conf::$db_port		= "3306";
+		Conf::$db_name		= "hug";
+		Conf::$db_user		= "root";
+		Conf::$db_pass		= "root";
+		break;
+	case 'Product':
+		break;
+	case 'Maintenance':
+		Conf::$filters		= ['maintenance'=>'*'];
+		break;
+	default:
+		break;
+}
