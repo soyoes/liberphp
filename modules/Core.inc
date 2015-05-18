@@ -742,27 +742,29 @@ class REQ {
         }
 
         try{
-			$filters = Consts::$filters;
-			$filterNames = array_keys($filters);
-			$size = count($filterNames);
-			$filterCls = [];
-			$data = $this->data;
-			
 			$auth = Auth::checkPermission($this);
+
 			if($auth != 200){
 				if($auth == 401)  return error(401, "Permission ERROR : Sorry, You are not permited to do that.");
 				if($auth == 403)  return error(403);
 			}
 
+			$ctl = $this->data["controller"];
+			$filterNames = [];$filterCls = [];
+			foreach (Consts::$filters as $fn => $pt) {
+				if($pt=='*' || preg_match($pt, substr($this->data['uri'],1)))
+					$filterNames[]=$fn;
+			}
+			$size = count($filterNames);
+
 			for ($token=$size*(-1); $token<=$size; $token++){
 				if(true===$this->interrupted)
 					break;
 				if ($token == 0){//Exec controller->actions
-					if(!empty($data["schema_name"])){
+					if(!empty($data["schema_name"]))
 						$this->process_rest();
-					}else{
+					else
 						$this->process_normal();
-					}
 				}else if($size>0){//Exec filters
 					$nextIdx = $token < 0 ? $size + $token : $size - $token ;
 					$filterName = $filterNames[$nextIdx];
