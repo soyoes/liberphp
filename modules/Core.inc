@@ -310,9 +310,10 @@ function async($msg,$func){
 function T($key){
 	$filename = null;
 	$lang = isset($_REQUEST["@lang"])?$_REQUEST["@lang"]:
-					(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
-						substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):
-						Consts::$lang);
+					(empty($_SESSION['lang']) ? $_SESSION['lang']:
+						(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
+							substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):
+							Consts::$lang));
 	$text_func = function($fn){
 		$file = join(__SLASH__,[APP_DIR,"conf","text.csv"]);
 		if (file_exists($file)){
