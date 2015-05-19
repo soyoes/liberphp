@@ -743,14 +743,14 @@ class REQ {
         }
 
         try{
-			$auth = Auth::checkPermission($this);
+        	$auth = Auth::checkPermission($this);
 
 			if($auth != 200){
 				if($auth == 401)  return error(401, "Permission ERROR : Sorry, You are not permited to do that.");
 				if($auth == 403)  return error(403);
 			}
-
-			$ctl = $this->data["controller"];
+			
+			$data = $this->data;
 			$filterNames = [];$filterCls = [];
 			foreach (Consts::$filters as $fn => $pt) {
 				if($pt=='*' || preg_match($pt, substr($this->data['uri'],1)))
