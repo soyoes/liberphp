@@ -251,7 +251,7 @@ function pdo_find($pdo,$table, $opts=[], $withCount=false){
 	if($withCount){
 		$sql = "SELECT count(*) FROM ".$table.preg_replace("/ORDER BY\s*(.*)\s*([LIMIT .*]*)/", '${3}',$optStr);
 		$cnt = pdo_count($pdo,$sql, $datas, $opts["useCache"]);
-		$res = ["count"=>$cnt,"result"=>$res];
+		return ["count"=>$cnt,"result"=>$res];
 	}else{
 		return $res;
 	}
