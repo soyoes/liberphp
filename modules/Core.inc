@@ -310,7 +310,7 @@ function async($msg,$func){
 function T($key){
 	$filename = null;
 	$lang = isset($_REQUEST["@lang"])?$_REQUEST["@lang"]:
-					(empty($_SESSION['lang']) ? $_SESSION['lang']:
+					(!empty($_SESSION['lang']) ? $_SESSION['lang']:
 						(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
 							substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):
 							Consts::$lang));
