@@ -269,7 +269,7 @@ function pdo_trans($pdo,$querys,$datas){
 	if(!isset($pdo)||!isset($querys))
 		return false;
 	$mod = $pdo->getAttribute(PDO::ATTR_ERRMODE);
-	$pdo->setAttribute( PDO::ATTR_AUTOCOMMIT, 0 );
+	$pdo->setAttribute(PDO::ATTR_AUTOCOMMIT, 0 );
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$pdo->beginTransaction();
 	$cnt = 0;
@@ -302,7 +302,7 @@ function pdo_trans($pdo,$querys,$datas){
 	}
 	if($cnt>0)
 		$pdo->commit();
-	$pdo->setAttribute( PDO::ATTR_AUTOCOMMIT, 1 );
+	$pdo->setAttribute(PDO::ATTR_AUTOCOMMIT, 1 );
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, $mod);
 	return $res;
 }
@@ -480,12 +480,13 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 	$schema = $schemaDef['schema'];
 	$connect = $schemaDef['connect'];
 	$connNames = array_keys($connect);
+
 	$data = [];
 	$conns = [];
 
 	//solve connect query
 	if(is_hash($opts) && !empty($opts['fields']) && 
-		(preg_match('/[\{\}\.]+/',$opts['fields'])) || preg_match('/\b('.join('|',$connNames).')\b/', $opts['fields']) ){ //query specified tables.columns
+		(preg_match('/[\{\}\.]+/',$opts['fields'])) || (!empty($connNames)&&preg_match('/\b('.join('|',$connNames).')\b/', $opts['fields'])) ){ //query specified tables.columns
 		//STEP 1 : solve connName{col1,col2...}
 		preg_match_all('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', $opts['fields'], $ma);
 		if(!empty($ma['tbl'])){
@@ -515,11 +516,10 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 					$ncols[]=$f;
 			}
 		}
-		//$opts['fields']= join(',',$ncols);
-		$colStr = join(',',$ncols);
+		$colStr = '`'.join('`,`',$ncols).'`.`';
 	}else{
 		if(!empty($opts['fields']) && $opts['fields']!='*'){
-			$colStr = is_string($opts['fields'])? explode(',',preg_replace('/[`\s]*,[`\s]*/',",",$opts['fields'])):$opts['fields'];
+			$colStr = is_string($opts['fields'])? explode(',',preg_replace('/[`\s]/',"",$opts['fields'])):$opts['fields'];
 			$colStr = array_filter($colStr, function($e) use($schema, $omit){return array_key_exists($e, $schema) && !in_array($e,$omit);});
 			$colStr = "`".join("`,`", $colStr)."`";
 		}else if($colStr=='*' && !empty($schemaDef['general']['fields'])){
