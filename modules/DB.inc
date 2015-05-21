@@ -516,12 +516,12 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 					$ncols[]=$f;
 			}
 		}
-		$colStr = '`'.join('`,`',$ncols).'`.`';
+		$colStr = '`'.join('`,`',$ncols).'`';
 	}else{
 		if(!empty($opts['fields']) && $opts['fields']!='*'){
 			$colStr = is_string($opts['fields'])? explode(',',preg_replace('/[`\s]/',"",$opts['fields'])):$opts['fields'];
 			$colStr = array_filter($colStr, function($e) use($schema, $omit){return array_key_exists($e, $schema) && !in_array($e,$omit);});
-			$colStr = "`".join("`,`", $colStr)."`";
+			$colStr = '`'.join('`,`', $colStr).'`';
 		}else if($colStr=='*' && !empty($schemaDef['general']['fields'])){
 			$colStr = '`'.str_replace(',', '`,`', $schemaDef['general']['fields']).'`';
 		}
