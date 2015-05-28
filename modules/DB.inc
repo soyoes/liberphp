@@ -139,7 +139,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 				$qo[$p] = $data[$p];
 		}
 		try{
-			$ext = pdo_find($pdo, $table, $qo);
+			$ext = pdo_find($pdo, $table."@".$schemaname, $qo);
 		}catch(Exception $e){
 			error_log($e->getMessage()."\n");
 		}
