@@ -167,7 +167,8 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		if(empty($pks)){
 			$sql = sprintf(FORMAT_UPDATE_DB, $table, $colStmt, $pk, db_v($id));
 		}else{
-			list($colStr,$optStr,$qrdatas) = db_make_query($table."@".$schemaname, $qo);
+			$table = $table."@".$schemaname;
+            list($colStr,$optStr,$qrdatas) = db_make_query($table, $qo);
 			foreach ($qrdatas as $qk=>$qv){
 				$qdatas[$qk]= $qv;
 			}
