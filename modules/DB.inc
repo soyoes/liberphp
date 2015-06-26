@@ -52,8 +52,8 @@ function pdo_conn($opts=null, $pdoOpts=null){
  **/
 function pdo_query($pdo, $sql, $datas=[]) {
 	if(!$pdo || empty($sql))return false;
-	error_log($sql);
-	error_log(json_encode($datas));
+	//error_log($sql);
+	//error_log(json_encode($datas));
 
 
 	
