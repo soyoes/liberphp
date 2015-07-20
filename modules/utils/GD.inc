@@ -53,11 +53,11 @@ class GD{
 	}
 
 	/**
-	 * draw text on pic
+	 * draw text on pic, default position=center, default color=black
 	 * @$fontname : font name under Conf::$gd_font_path without ".ttf". for instance "arial"
 	 * @$size	: font size of int value
 	 * */
-	public static function text($out, $bg, $text, $fontname, $x, $y, $size, $color="#000000"){
+	public static function text($out, $bg, $text, $fontname, $fontsize, $color="#000000", $stroke=null, $strokeWidth=0, $x=-1, $y=-1){
 		try{
 			$imp_dir = property_exists('Conf','gd_import_path')? Conf::$gd_import_path:'';
 			$exp_dir = property_exists('Conf','gd_export_path')? Conf::$gd_export_path:'';
@@ -74,8 +74,50 @@ class GD{
 			$b = hexdec(substr($color,5,2));
 			$color = imagecolorallocate($img, $r, $g, $b);
 
+
+			if($stroke){
+				$r = hexdec(substr($stroke,1,2));
+				$g = hexdec(substr($stroke,3,2));
+				$b = hexdec(substr($stroke,5,2));
+				$strokec = imagecolorallocate($img, $r, $g, $b);
+			}
+
 			$font = $font_dir.$fontname.'.ttf';
-			imagettftext($img, $size, 0, $x, $y, $color, $font, $text);
+
+			$box = imagettfbbox($fontsize, 0, $font, $text);			
+			$twa = abs($box[4] - $box[0]); //text width 
+			$tha = abs($box[1] - $box[5]); //text height 
+			$bgw = imagesx($img);
+			$bgh = imagesy($img);
+
+			$lines = explode("\n", $text);
+
+			
+			$ox = $x; $oy = $y;
+			$rh = $tha/count($lines); //row height
+
+			$i = 0; 
+			foreach ($lines as $line) {
+				$box = imagettfbbox($fontsize, 0, $font, $line);			
+				$tw = abs($box[4] - $box[0]);
+				$th = abs($box[1] - $box[5]);
+				
+				if($ox<0){//center
+					$x = ($bgw-$tw)/2;
+				}
+				$y = $oy<0? ($bgh-$tha)/2+$i*$rh + ($rh-$th)/2 : $y + +$i*$rh + ($rh-$th)/2;
+
+				if($stroke){
+					for($c1 = ($x-abs($strokeWidth)); $c1 <= ($x+abs($strokeWidth)); $c1++)
+				        for($c2 = ($y-abs($strokeWidth)); $c2 <= ($y+abs($strokeWidth)); $c2++)
+				            imagettftext($img, $fontsize, 0, $c1, $c2, $strokec, $font, $line);
+				    imagettftext($img, $fontsize, 0, $x, $y, $color, $font, $line);
+				}	
+				else
+					imagettftext($img, $fontsize, 0, $x, $y, $color, $font, $line);			
+
+				$i++;
+			}
 
 			$ext = self::ext($out);
 			header("Content-Type: image/".$ext);
@@ -213,7 +255,7 @@ class GD{
 			$imp_dir = property_exists('Conf','gd_import_path')? Conf::$gd_import_path:'';
 			$exp_dir = property_exists('Conf','gd_export_path')? Conf::$gd_export_path:'';
 			
-			$img = str_starts($img, '/')? $bg:$imp_dir.$img;
+			$img = str_starts($img, '/')? $img:$imp_dir.$img;
 			$out = str_starts($out,'/')? $out:$exp_dir.$out;
 
 			exec("rm -f $out");
@@ -246,7 +288,7 @@ class GD{
 			return true;
 		}catch(Exception $e){
 			return false;
-			error_log($e->getMessage());
+			error_log("ERR GD::resize() ".$e->getMessage());
 		}
 	    
 	}
@@ -254,6 +296,26 @@ class GD{
 	static function ext($fn){
 		$ext = end(explode(".",$fn));
 		return $ext == "jpg" ? "jpeg":$ext;
+	}
+
+	/**
+	 * @param  [type] $photo    base64 decoded string
+	 * @param  [type] $out_dir  e.g. /var/www/html/export/
+	 * @param  [type] $out_file e.g. 121343434 (without .jpg)
+	 * @param  [type] $out_ext  e.g. jpg
+	 */
+	static function export($photo, $out_dir, $out_file, $out_ext="jpg"){
+		$imgData = str_starts($photo,"data")? base64_decode(explode(',', $photo)[1]):base64_decode($photo);
+		$src = imagecreatefromstring($imgData);
+		error_log("GD::export out_dir=$out_dir");
+		fs_mkdir($out_dir);
+		$outf = "$out_dir/$out_file.$out_ext";
+		if($out_ext=="jpg")
+			imagejpeg($src,$outf,75);
+		else if($out_ext=="png")
+			imagepng($src,$outf);
+		self::resize("$out_dir/$out_file"."_s.jpg", $outf, null, 120);
+		imagedestroy($src);	
 	}
 
 }

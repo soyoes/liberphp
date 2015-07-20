@@ -813,6 +813,7 @@ class REQ {
 			$action = $data["action"];
 
 			$exec = function($action){
+				//FIXME : exclude_wrappers not work
 				$has_wrapper =  !isset($exclude_wrappers) || !in_array($action, $exclude_wrappers);
 				if (function_exists("before_wrapper") && $has_wrapper)
 					before_wrapper($this->params);
