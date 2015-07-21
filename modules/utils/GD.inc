@@ -285,10 +285,65 @@ class GD{
 		    // save thumbnail into a file
 		    $func_name = "image".$ext;
 			call_user_func($func_name, $tmp_img, $out);
+			imagedestroy($tmp_img);
+			imagedestroy($img);
 			return true;
 		}catch(Exception $e){
 			return false;
 			error_log("ERR GD::resize() ".$e->getMessage());
+		}
+	    
+	}
+
+	/**
+	 * @example : crop 
+	 *  GDs::crop ("out.jpg", $image, 0,100,200,200);
+	 * */
+	static function crop($out, $img, $x, $y, $w, $h) {
+		try{
+			$imp_dir = property_exists('Conf','gd_import_path')? Conf::$gd_import_path:'';
+			$exp_dir = property_exists('Conf','gd_export_path')? Conf::$gd_export_path:'';
+			
+			$img = str_starts($img, '/')? $img:$imp_dir.$img;
+			$out = str_starts($out,'/')? $out:$exp_dir.$out;
+
+			exec("rm -f $out");
+
+			$ext = self::ext($img);
+			$func_name = "imagecreatefrom".$ext;
+			$img = call_user_func($func_name, $img);
+
+			
+
+			$ww = imagesx( $img );
+		    $hh = imagesy( $img );
+
+		    $tmp_img = imagecreatetruecolor( $w, $h );
+		
+		 	$black = imagecolorallocate($tmp_img, 0, 0, 0);
+
+			// Make the background transparent
+			imagecolortransparent($tmp_img, $black);
+			
+		     // copy and resize old image into new image 
+		    if($ww>$hh){
+		    	imagecopyresized( $tmp_img, $img, 0, 0, $x, $y, $w, $h, $hh/$h*$w, $hh/$h*$h);	
+		    	// imagecopy( $tmp_img, $img, 0, 0, $x, $y, $hh/$h*$w, $hh/$h*$h);	
+		    }else{
+		    	imagecopyresized( $tmp_img, $img, 0, 0, $x, $y, $w, $h, $ww/$w*$w, $ww/$w*$h);	
+		    	// imagecopy( $tmp_img, $img, 0, 0, $x, $y, $ww/$w*$w, $ww/$w*$h);	
+		    }
+		    
+		    // save thumbnail into a file
+		    $func_name = "image".$ext;
+			call_user_func($func_name, $tmp_img, $out);
+
+			imagedestroy($tmp_img);
+			imagedestroy($img);
+			return true;
+		}catch(Exception $e){
+			return false;
+			error_log("ERR GD::crop() ".$e->getMessage());
 		}
 	    
 	}
