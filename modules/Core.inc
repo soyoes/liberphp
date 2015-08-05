@@ -507,10 +507,10 @@ function parse_user_agent($ua=""){
 	$type = "pc";
 	if(preg_match('/(curl|wget|ApacheBench)\//i',$ua))
 		$type = "cmd";
-	else if(preg_match('/(iPad|MSIE.*Touch|Android)/',$ua)) //FIXME Android problems later.
-		$type = "pad";
 	else if(preg_match('/(iPhone|iPod|(Android.*Mobile)|BlackBerry|IEMobile)/i',$ua))
 		$type = "sm";
+	else if(preg_match('/(iPad|MSIE.*Touch|Android)/',$ua))
+		$type = "pad";
 	/*
 	 * check search engine bots.
 	* Yeti : naver.com /Korea:6
