@@ -50,19 +50,17 @@ function pdo_conn($opts=null, $pdoOpts=null){
 /**
  *query with pdo instance 
  **/
-function pdo_query($pdo, $sql, $datas=[]) {
+function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
-	//error_log($sql);
-	//error_log(json_encode($datas));
-
-
-	
+	// error_log($sql);
+	// error_log(json_encode($datas));	
+	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), "select");
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
 		return false;
 	}
-	return $isQeury? $statement->fetchAll(PDO::FETCH_ASSOC):true;
+	return $isQeury? $statement->fetchAll($pdoOpt):true;
 }
 
 function pdo_count($pdo, $sql, $datas=[], $col=0){
@@ -191,6 +189,8 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 			$qdatas[$col]= $val;//db_v($val, $schema[$col], $bson);
 		}
 		$sql = sprintf(FORMAT_INSERT_DB, $ignore, $table, $colStmt, $valStmt);
+		error_log("sql=$sql");
+		error_log("data=".json_encode($data));
 	}
 	try {
 		if($returnId==true && !$isUpdate) {
@@ -199,7 +199,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 				$data["id"] = $res[0]["last_id"];
 			}else{
 				pdo_query($pdo, $sql,$qdatas);
-				$res = pdo_query($pdo, "SELECT LAST_INSERT_ID() as 'last_id'", [ ]);
+				$res = pdo_query($pdo, "SELECT LAST_INSERT_ID() as 'last_id'", []);
 				$data["id"] = $res[0]["last_id"];
 			}
 		}else{
@@ -212,11 +212,11 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		return false;
 	}
 }
-function pdo_find($pdo,$table, $opts=[], $withCount=false){
+function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 	if(!$pdo || !$table)return false;
 	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts);
 	$sql = "SELECT ".$colStr." FROM ".$table.$optStr;
-	$res = pdo_query($pdo, $sql, $datas, $opts["useCache"]);
+	$res = pdo_query($pdo, $sql, $datas, $pdoOpt);
 	if(!empty($conns) && !empty($res)){
 		$ds = [];
 		$extras = [];
@@ -231,7 +231,7 @@ function pdo_find($pdo,$table, $opts=[], $withCount=false){
 				$condition["$tc@in"]=join(',',$ds[$col]);
 			}else
 				$condition[$tc]=$ds[$col][0];
-			$re = pdo_find($pdo,$def['table'],$condition);
+			$re = pdo_find($pdo,$def['table'],$condition, $withCount, $pdoOpt);
 			$extras[$conn]=[];
 			foreach ($re as $r) {
 				if(!isset($extras[$conn]["$r[$tc]"])) 
@@ -266,9 +266,10 @@ function pdo_exists($pdo, $table, $id){
 	$entity =pdo_count($pdo, "select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
 	return $entity>0;
 }
-function pdo_trans($pdo,$querys,$datas){
+function pdo_trans($pdo,$querys,$datas,$pdoOpt){
 	if(!isset($pdo)||!isset($querys))
 		return false;
+	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$mod = $pdo->getAttribute(PDO::ATTR_ERRMODE);
 	$pdo->setAttribute(PDO::ATTR_AUTOCOMMIT, 0 );
 	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -291,7 +292,7 @@ function pdo_trans($pdo,$querys,$datas){
 						continue;
 					}
 					if(str_starts(strtolower($q), "select")){
-						$res = $statement->fetchAll(PDO::FETCH_ASSOC);					}
+						$res = $statement->fetchAll($pdoOpt);					}
 						$cnt++;
 				}
 			}
@@ -323,7 +324,7 @@ function pdo_trans($pdo,$querys,$datas){
  * @example :
  * 	db_query("select * from tasks where `id`=?",[1]);
  */
-function db_query($sql, $datas=[], $useCache = false) {
+function db_query($sql, $datas=[], $useCache = false, $pdoOpt=null) {
 	try {
 		$key = $sql;
 		$isQeury = str_starts(strtolower($sql), "select");
@@ -334,7 +335,7 @@ function db_query($sql, $datas=[], $useCache = false) {
 				return $value;
 		}
 		$db = db_conn();
-		$res = pdo_query($db, $sql, $datas);
+		$res = pdo_query($db, $sql, $datas, $pdoOpt);
 		if ($useCache && $isQeury && $res != null) {
 			cache_set($key, $res);
 		}
@@ -411,8 +412,8 @@ function db_attr($attr, $val){
 	]);
  * 
  */
-function db_find($table, $opts=[], $withCount=false){
-	return pdo_find(db_conn(), $table, $opts, $withCount);
+function db_find($table, $opts=[], $withCount=false, $pdoOpt=null){
+	return pdo_find(db_conn(), $table, $opts, $withCount, $pdoOpt);
 }
 /**
  * search with data options, returns 1st matched record.
@@ -425,9 +426,9 @@ function db_find($table, $opts=[], $withCount=false){
  	]);
  *
  */
-function db_find1st($table, $opts=[]){
+function db_find1st($table, $opts=[], $pdoOpt=null){
 	$opts["limit"]=1;
-	$res = db_find($table,$opts,false,$decodeBson);
+	$res = db_find($table,$opts,false,$pdoOpt);
 	return isset($res)&&$res!=false ? $res[0]:false;
 }
 

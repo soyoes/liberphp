@@ -62,7 +62,7 @@ class GD{
 			$imp_dir = property_exists('Conf','gd_import_path')? Conf::$gd_import_path:'';
 			$exp_dir = property_exists('Conf','gd_export_path')? Conf::$gd_export_path:'';
 			$font_dir= property_exists('Conf','gd_font_path')? 	Conf::$gd_font_path:'';
-
+			error_log($color." - ".$stroke);
 			$bg  = str_starts($bg, '/')? $bg:$imp_dir.$bg;
 			$out = str_starts($out,'/')? $out:$exp_dir.$out;
 
@@ -72,15 +72,6 @@ class GD{
 			$r = hexdec(substr($color,1,2));
 			$g = hexdec(substr($color,3,2));
 			$b = hexdec(substr($color,5,2));
-			$color = imagecolorallocate($img, $r, $g, $b);
-
-
-			if($stroke){
-				$r = hexdec(substr($stroke,1,2));
-				$g = hexdec(substr($stroke,3,2));
-				$b = hexdec(substr($stroke,5,2));
-				$strokec = imagecolorallocate($img, $r, $g, $b);
-			}
 
 			$font = $font_dir.$fontname.'.ttf';
 
@@ -92,7 +83,6 @@ class GD{
 
 			$lines = explode("\n", $text);
 
-			
 			$ox = $x; $oy = $y;
 			$rh = $tha/count($lines); //row height
 
@@ -108,14 +98,20 @@ class GD{
 				$y = $oy<0? ($bgh-$tha)/2+$i*$rh + ($rh-$th)/2 : $y + +$i*$rh + ($rh-$th)/2;
 
 				if($stroke){
+					$sr = hexdec(substr($stroke,1,2));
+					$sg = hexdec(substr($stroke,3,2));
+					$sb = hexdec(substr($stroke,5,2));
+					$strokec = imagecolorallocate($img, $sr, $sg, $sb);
 					for($c1 = ($x-abs($strokeWidth)); $c1 <= ($x+abs($strokeWidth)); $c1++)
 				        for($c2 = ($y-abs($strokeWidth)); $c2 <= ($y+abs($strokeWidth)); $c2++)
 				            imagettftext($img, $fontsize, 0, $c1, $c2, $strokec, $font, $line);
-				    imagettftext($img, $fontsize, 0, $x, $y, $color, $font, $line);
-				}	
-				else
-					imagettftext($img, $fontsize, 0, $x, $y, $color, $font, $line);			
-
+				    $colorc = imagecolorallocate($img, $r, $g, $b);
+				    imagettftext($img, $fontsize, 0, $x, $y, $colorc, $font, $line);
+				}else{
+					$colorc = imagecolorallocate($img, $r, $g, $b);
+					imagettftext($img, $fontsize, 0, $x, $y, $colorc, $font, $line);			
+				}
+					
 				$i++;
 			}
 
@@ -124,6 +120,7 @@ class GD{
 			fs_mkdir($out);
 			call_user_func("image".$ext, $img, $out);
 			imagedestroy($img);
+
 		}catch (Exception $e){
 			error_log("GD::merge ERR:".$e->getMessage());
 		}
@@ -371,6 +368,67 @@ class GD{
 			imagepng($src,$outf);
 		self::resize("$out_dir/$out_file"."_s.jpg", $outf, null, 120);
 		imagedestroy($src);	
+	}
+
+	/**
+	 * detect porn 
+	 * @param  image path
+	 * @return a score of 0~100, 
+	 *      > 70 ? very dangurous
+	 *      > 60 ? dangurous
+	 *      > 50 ? be careful
+	 *      > 40 ? notice
+	 */
+	static function pornScore($image){
+	    $C1 = 7944996;
+	    $C2 = 16696767;
+	    $R1 = ['R'=> ($C1 >> 16) & 0xFF, 'G'=> ($C1 >> 8) & 0xFF, 'B'=> $C1 & 0xFF];
+	    $R2 = ['R'=> ($C2 >> 16) & 0xFF, 'G'=> ($C2 >> 8) & 0xFF, 'B'=> $C2 & 0xFF];
+	    $info = GetImageSize($image);
+	    $x = $info[0];
+	    $y = $info[1];
+	    $img ;
+	    switch( $info[2] ){
+	        case IMAGETYPE_GIF:
+	            $img = @imagecreatefromgif($image);break;
+	        case IMAGETYPE_JPEG:
+	            $img = @imagecreatefromjpeg($image);break;
+	        case IMAGETYPE_PNG:
+	            $img = @imagecreatefrompng($image);break;
+	        default:
+	            return -1;
+	    }
+	    if(!$img) return -1;
+
+	    $score = 0;
+	    
+	    $xs = [$x/8, $x/4, ($x/8 + $x/4), $x-($x/8 + $x/4), $x-($x/4), $x-($x/8)];
+	    $ys = [$y/8, $y/4, ($y/8 + $y/4), $y-($y/8 + $y/4), $y-($y/8), $y-($y/8)];
+	    $zs = [$xs[2], $ys[1], $xs[3], $y];
+	    
+	    for($i=1; $i<=$x; $i++){
+	        for($j=1; $j<=$y; $j++){
+	            $c = imagecolorat($img, $i, $j);
+	            if($c >= $C1 && $c <= $C2){
+	                $c = ['R'=> ($c >> 16) & 0xFF, 'G'=> ($c >> 8) & 0xFF, 'B'=> $c & 0xFF];
+	                if($c['G'] >= $R1['G'] && $c['G'] <= $R2['G'] && $c['B'] >= $R1['B'] && $c['B'] <= $R2['B']){
+	                    if($i >= $zs[0] && $j >= $zs[1] && $i <= $zs[2] && $j <= $zs[3]){
+	                        $score += 3;
+	                    }elseif($i <= $xs[0] || $i >=$xs[5] || $j <= $ys[0] || $j >= $ys[5]){
+	                        $score += 0.10;
+	                    }elseif($i <= $xs[0] || $i >=$xs[4] || $j <= $ys[0] || $j >= $ys[4]){
+	                        $score += 0.40;
+	                    }else{
+	                        $score += 1.50;
+	                    }
+	                }
+	            }
+	        }
+	    }
+	    imagedestroy($img);
+	    $score = sprintf('%01.2f', ($score * 100) / ($x * $y));
+	    if($score > 100) $score = 100;
+	    return $score;
 	}
 
 }
