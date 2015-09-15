@@ -8,8 +8,8 @@
 
 if (!apc_load_constants("DB_FMTS")){
 	apc_define_constants("DB_FMTS", [
-	'FORMAT_CREATE_DB' 			 => "CREATE TABLE `%s`.`%s` ( %s PRIMARY KEY (`%s`)) ENGINE=InnoDB %s DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
-	'FORMAT_CREATE_DB_MULTI_KEY' => "CREATE TABLE `%s`.`%s` ( %s CONSTRAINT %s PRIMARY KEY (%s)) ENGINE=InnoDB %s DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+	'FORMAT_CREATE_DB' 			 => "CREATE TABLE `%s`.`%s` ( %s PRIMARY KEY (`%s`)) ENGINE=%s %s DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+	'FORMAT_CREATE_DB_MULTI_KEY' => "CREATE TABLE `%s`.`%s` ( %s CONSTRAINT %s PRIMARY KEY (%s)) ENGINE=%s %s DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
 	'FORMAT_INSERT_DB' 			 => "INSERT %s INTO `%s` (%s) VALUES(%s);",
 	'FORMAT_UPDATE_DB'			 => "UPDATE `%s` SET %s WHERE `%s`=%s;",
 	]);
@@ -627,6 +627,22 @@ function db_migrate($schemaName, $tableName=null){
 		$schema_def = db_schema($schemaName);
 		$schema = $schema_def["schema"];
 		$pk = $schema_def["general"]["pk"];
+
+		$engine = "InnoDB";
+		if (!empty($schema_def["general"]["engine"])) {
+			switch (strtolower($schema_def["general"]["engine"])) {
+				case "memory":
+					$engine = "MEMORY";
+					break;
+				case "myisam":
+					$engine = "MyISAM";
+					break;
+				default:
+					$engine = "InnoDB";
+					break;
+			}
+		}
+
 		$colStmt = "";
 		foreach ($schema as $col => $type){
 			$colStmt .= "`".$col."` ".$type.", ";
@@ -640,9 +656,9 @@ function db_migrate($schemaName, $tableName=null){
 			$parts = preg_split("/[\|\+,]/", $pk);
 			$pkName = join('_',$parts);
 			$keys = '`'.join('`,`',$parts)."`";
-			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, $dbn, $tableName, $colStmt, $pkName, $keys, $incStmt);
+			$sql = sprintf(FORMAT_CREATE_DB_MULTI_KEY, $dbn, $tableName, $colStmt, $pkName, $keys, $engine, $incStmt);
 		}else{
-			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $tableName, $colStmt, $pk, $incStmt);
+			$sql = sprintf(FORMAT_CREATE_DB, $dbn, $tableName, $colStmt, $pk, $engine, $incStmt);
 		}
 		$res = db_query($sql);
 		
@@ -653,7 +669,8 @@ function db_migrate($schemaName, $tableName=null){
 				$name = "idx_".preg_replace('/[\+\.\|]/', '_',$cols);
 				$cols = preg_replace('/[\+\.\|]/', '`,`',$cols);
 				$desc = $desc=="unique"?"UNIQUE ":" ";
-				$sql = "CREATE ${desc}INDEX $name ON `$tableName` (`$cols`)";
+				$indextype = ($engine == "MEMORY" && strtolower($desc)=="hash") ? " USING HASH" : " ";
+				$sql = "CREATE ${desc}INDEX $name ON `$tableName` (`$cols`) $indextype";
 				if($isCLI) echo $sql."\n";
 				db_query($sql);
 			}
