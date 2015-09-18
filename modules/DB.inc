@@ -481,7 +481,7 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 	$pk = $schemaDef['general']['pk'];
 	$schema = $schemaDef['schema'];
 	$connect = $schemaDef['connect'];
-	$connNames = array_keys($connect);
+	$connNames = !empty($connect) ?array_keys($connect):[];
 
 	$data = [];
 	$conns = [];

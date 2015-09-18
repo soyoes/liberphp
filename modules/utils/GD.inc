@@ -57,7 +57,7 @@ class GD{
 	 * @$fontname : font name under Conf::$gd_font_path without ".ttf". for instance "arial"
 	 * @$size	: font size of int value
 	 * */
-	public static function text($out, $bg, $text, $fontname, $fontsize, $color="#000000", $stroke=null, $strokeWidth=0, $x=-1, $y=-1){
+	public static function text($out, $bg, $text, $fontname, $fontsize, $color="#000000", $stroke=null, $strokeWidth=0, $x=-1, $y=-1,$padding=0,$xOff=0,$yOff=0){
 		try{
 			$imp_dir = property_exists('Conf','gd_import_path')? Conf::$gd_import_path:'';
 			$exp_dir = property_exists('Conf','gd_export_path')? Conf::$gd_export_path:'';
@@ -81,10 +81,37 @@ class GD{
 			$bgw = imagesx($img);
 			$bgh = imagesy($img);
 
-			$lines = explode("\n", $text);
+			$trw = $bgw-2*$padding;//text real width
 
+			if($twa > $trw){//redefine paragraphs of text
+				$lines = [];
+				$ls = explode("\n", $text);
+				foreach ($ls as $l) {
+					$box = imagettfbbox($fontsize, 0, $font, $l);			
+					$twa = abs($box[4] - $box[0]); //text width 
+					$tha = abs($box[1] - $box[5]); //text height 
+					if($twa>$trw){
+						$charw = $twa/mb_strlen($l);
+						$tics = ceil($twa/$trw);
+						$ticChars = floor($trw/$charw);
+						for($i=0;$i<$tics;$i++){
+							$lines[]=mb_substr($l, $i*$ticChars, $ticChars);
+						}
+					}else{
+						$lines[]=$l;
+					}
+				}
+				$text = join("\n",$lines);
+				$box = imagettfbbox($fontsize, 0, $font, $text);			
+				$twa = abs($box[4] - $box[0]); //text width 
+				$tha = abs($box[1] - $box[5]); //text height 
+			}else
+				$lines = explode("\n", $text);
+
+			
 			$ox = $x; $oy = $y;
-			$rh = $tha/count($lines); //row height
+			$rh = $tha/count($lines)+10; //row height
+
 
 			$i = 0; 
 			foreach ($lines as $line) {
@@ -93,9 +120,10 @@ class GD{
 				$th = abs($box[1] - $box[5]);
 				
 				if($ox<0){//center
-					$x = ($bgw-$tw)/2;
+					$x = ($bgw-$tw)/2+$xOff;
 				}
-				$y = $oy<0? ($bgh-$tha)/2+$i*$rh + ($rh-$th)/2 : $y + +$i*$rh + ($rh-$th)/2;
+				$y = $oy<0? ($bgh-$tha)/2+$i*$rh + ($rh-$th)/2 : $y + $i*$rh + ($rh-$th)/2;
+				$y += $yOff;
 
 				if($stroke){
 					$sr = hexdec(substr($stroke,1,2));
@@ -369,6 +397,7 @@ class GD{
 		self::resize("$out_dir/$out_file"."_s.jpg", $outf, null, 120);
 		imagedestroy($src);	
 	}
+
 
 	/**
 	 * detect porn 

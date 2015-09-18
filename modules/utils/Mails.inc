@@ -20,7 +20,7 @@ class Mails {
 			$to=join(",",$to);
 		$headers  = "MIME-Version: 1.0\r\n";
  		$headers .= "Content-type: text/html; charset: UTF-8\r\n";
- 		$headers .= "Content-Transfer-Encoding: base64\r\n";
+ 		//$headers .= "Content-Transfer-Encoding: base64\r\n";
 		$headers .= "From: $from \r\n";
 		$headers .= "Reply-To: noreply@".$_SERVER["HTTP_HOST"]." \r\n";
 		$subject = "=?UTF-8?B?".base64_encode($subject)."?=";    
