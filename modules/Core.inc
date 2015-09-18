@@ -658,7 +658,6 @@ class REQ {
 			"version"		=> $ver,
 			"namespaces" 	=> ds_remove(array_unique($namespaces), ""),
 			"controllers" 	=> ds_remove(array_unique($controllers), ""),
-			//"permission"	=> $permission, permission will be loaded in Auth::checkPermission
 			"schemas"		=> ds_remove($schemas, ""),
 			"views"			=> ds_remove($views, ["","pc","sm","bot","ibot","pad","mail"]),
 			"view_types"	=> array_map(function($e){
@@ -743,11 +742,11 @@ class REQ {
         }
 
         try{
-        	$auth = Auth::checkPermission($this);
+        	$per = permission();
 
-			if($auth != 200){
-				if($auth == 401)  return error(401, "Permission ERROR : Sorry, You are not permited to do that.");
-				if($auth == 403)  return error(403);
+			if($per != 200){
+				if($per == 401)  return error(401, "Permission ERROR : Sorry, You are not permited to do that.");
+				if($per == 403)  return error(403);
 			}
 			
 			$data = $this->data;
@@ -801,7 +800,7 @@ class REQ {
 	 * Controller function, Process normal requests.
 	 * Obey the rules of /...PATH/CONTROLLER_NAME/ACTION_NAME?parameters
 	 */
-	private function process_normal($useSession=true){
+	private function process_normal(){
 		try {
 			//FIXME add namespace | customize 1st level path
 			$ctrldir = APP_DIR.__SLASH__.'controllers'.__SLASH__;
@@ -903,6 +902,78 @@ class REQ {
 }
 
 
+/**
+ * permission for each group is a N-bit binary number
+ * 1) restful request:
+ * 		in conf/schemas/YOUR_SCHEMA.ini
+ * 		[general]
+ * 		permisstion = 08F
+ * 2) normal request:
+ * 		in comment of controllers/YOUR_CONTROLLER.inc 
+ * 		@permission = 8CF
+ * 
+ * available numbers of each bit(auth group)
+ * 	0:0000, no permission for this group
+ *  8:1000, read only(GET)
+ * 	9:1001, read(GET) + delete(DELETE)
+ * 	A:1010, read(GET) + update(PUT)
+ *  B:1011, read(GET) + update(PUT), delete(DELETE)
+ * 	C:1100, read(GET) + add(POST)
+ * 	D:1101, read(GET) + add(POST), delete(DELETE)
+ *	E:1110, read(GET) + add(POST), update(PUT)
+ * 	F:1111, read(GET) + add(POST), update(PUT), delete(DELETE)
+ *  
+ * meanings of each bit
+ * 1st : permission of guest group default=8 (read only)
+ * Nth : permission of Nth auth group (N = AuthDelegate::group()). default = F (all permission)
+ * 
+ * @return : 200=OK, 401=Unauthorized, 403=Forbidden
+ * 
+ * */
+function permission(){
+	$req = REQ::getInstance();
+	$uri = $req->getURI();
+	$schemaDef = $req->getData('schema_def');
+	$group = AuthDelegate::group();
+	$permission = '';
+	if(!empty($schemaDef)){//RESTFUL
+		$restful =  strtolower($schemaDef['general']['restful']?$schemaDef['general']['restful']:'');
+		//not permit restful on this schema
+		if(!empty($resful) && $restful!='all' && !str_has($restful, $method)){ return false; }
+		$permission = isset($schemaDef['general']['permission'])?$schemaDef['general']['permission']:'';
+	}else{
+		$ctl = $req->getController();
+		$ns  = $req->getNamespace();
+		$tree = cache_get('APP_PERMISSION_'.$ns.'_'.$ctl, function($key){
+			$ctrldir = APP_DIR.__SLASH__.'controllers'.__SLASH__;
+			$req = REQ::getInstance();
+			$ns = $req->getNamespace();
+			$controller_dir = !empty($ns) ? $ctrldir.$ns.'/':$ctrldir;
+			$fp = $controller_dir.str_replace('APP_PERMISSION_'.$ns.'_','',$key).'.inc';
+			$tree = fs_src_tree($fp);
+			$permission = ['@file' => $tree['annotations']['permission']];
+			foreach ($tree['functions'] as $fn => $ftr){
+				$permission[$fn] = $ftr['annotations']['permission'];
+			}
+			return $permission; 
+		},false);
+
+		$act = $req->getAction();
+		$permission = isset($tree[$act])?$tree[$act]:$tree['@file'];
+	}
+	$bits = !isset($permission)?($group==0?'8':'F'): $permission[$group];//bits is hex string (len=1)
+
+	echo "per=$permission, $group\n";
+
+	if($bits=='0') return $group==0? 401 : 403;
+	
+	//$bits : int -> 4 bit binary string
+	$bits = base_convert($bits, 16, 2); 
+	//$bits = str_pad(base_convert($bits, 16, 2),4,'0',STR_PAD_LEFT);
+	$bitIdx = array_search($req->getMethod(), ['get','post','put','delete']);
+	if($bits[$bitIdx]!='1') return $group==0? 401 : 403;
+	return 200;
+}
 
 
 ?>

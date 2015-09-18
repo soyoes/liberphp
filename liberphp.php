@@ -177,7 +177,7 @@ function llog(\$label, \$value, \$toScreen=false){
 ?>
 
 EOF2;
-	$files = ['Core','Lang','Session','Caches','DB','Model','Render','Filter','Auth'];
+	$files = ['Core','Lang','Session','Caches','DB','Render','Filter'];
 	foreach($files as $f){
 		//echo $f."\n";
 		$str = file_get_contents($pwd."/modules/".$f.".inc");
