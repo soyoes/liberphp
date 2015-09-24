@@ -963,8 +963,6 @@ function permission(){
 	}
 	$bits = !isset($permission)?($group==0?'8':'F'): $permission[$group];//bits is hex string (len=1)
 
-	echo "per=$permission, $group\n";
-
 	if($bits=='0') return $group==0? 401 : 403;
 	
 	//$bits : int -> 4 bit binary string
