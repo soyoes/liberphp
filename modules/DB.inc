@@ -42,7 +42,12 @@ function pdo_conn($opts=null, $pdoOpts=null){
 		'user'	=>Consts::$db_user,
 		'pass'	=>Consts::$db_pass,
 	];
-	$conn_str = $opts["engine"].":host=".$opts["host"].";port=".$opts["port"].";dbname=".$opts["db"].";charset=utf8";
+	if (ini_get("mysqlnd_ms.enable")) {
+		$host = APP_NAME."_".Consts::$mode;
+		$conn_str = $opts["engine"].":host=$host".";dbname=".$opts["db"].";charset=utf8";
+	} else {
+		$conn_str = $opts["engine"].":host=".$opts["host"].";port=".$opts["port"].";dbname=".$opts["db"].";charset=utf8";
+	}
 	$pdoOpts = $pdoOpts ? $pdoOpts :[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
 	return new PDO($conn_str,$opts["user"],$opts["pass"],$pdoOpts);
 }
