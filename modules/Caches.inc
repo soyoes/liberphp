@@ -135,8 +135,10 @@ function mc_get($key, $nullHandler=null){
 			if(isset($r)&&$r!=false){
 				mc_set($key, $r);
 			}
+			return $r;
 		}
-	}	
+		return $v;
+	}
 	return false;
 }
 
