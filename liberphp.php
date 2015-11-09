@@ -99,11 +99,11 @@ function build($appName=null){
  *	@author: Soyoes 2014/01/28
  *****************************************************************************/
 require 'conf/conf.inc';
+const LIBER_DIR = '/Users/soyoes/Dropbox/Develop/php/liberPHP2';
+const __SLASH__ = DIRECTORY_SEPARATOR;
 define('APP_DIR', dirname(__FILE__));
 define('IMAGE_DIR', APP_DIR . __SLASH__ . "webroot" . __SLASH__ . "images" . __SLASH__);
 define('APP_NAME', end(explode("/", APP_DIR)));
-const LIBER_DIR = '/Users/soyoes/Dropbox/Develop/php/liberPHP2';
-const __SLASH__ = DIRECTORY_SEPARATOR;
 
 set_include_path(
 get_include_path(). PATH_SEPARATOR
