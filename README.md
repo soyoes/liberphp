@@ -19,7 +19,7 @@ A extremely simple &amp; fast php web framework
 * /@{$scheme_name}?{$query_conditions}
 
 ### HTML Template & Custom Tags
-* 3~5 times faster then Smarty
+* 3~5 times faster than Smarty
 * Only about 10 tags to remember.
 * Define your own tags easily
 
@@ -50,4 +50,7 @@ A extremely simple &amp; fast php web framework
 ### Variable Awesome Tools
 * Mail, CSV, GD2 (Image processing), Binary, S3, SEO, Common OAuth client.
 
+
+####
+DB_FIND performance
  

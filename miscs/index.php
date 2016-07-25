@@ -1,6 +1,6 @@
 <?php
 /**
- *	@file: liber.php
+ *	@file: index.php
  *	@author: Soyoes 2014/01/28
  *****************************************************************************/
 require 'conf/conf.inc';
@@ -26,60 +26,8 @@ spl_autoload_register(function($class){
 		include_once $class.'.php';
 });
 try{
-	$cli_args = array_slice($argv, 1);
-	$cli_cmd = array_shift($cli_args);
-	if(php_sapi_name() == 'cli' || PHP_SAPI == 'cli'){
-		$cli_cmd="cli_".$cli_cmd;
-		if(function_exists($cli_cmd)){$cli_cmd();}
-	}else{
-		REQ::dispatch();
-	}
+	REQ::dispatch();
 }catch(Exception $e){
 	error_log($e->getMessage());
 	exit;
 }
-function cli_script(){
-	global $cli_args;
-	$f = array_shift($cli_args);
-	if(!empty($f)){
-		$pwd=dirname(__FILE__);
-		$f = $pwd."/scripts/$f.php";
-		include $f;
-	}
-	exit;
-}
-function cli_migrate(){
-	try{
-		$pwd=dirname(__FILE__);
-		$schemas = glob($pwd."/conf/schemas/*.ini") ;
-		foreach ($schemas as $file){
-			echo $file."\n";
-			$parts = explode("/",$file);
-			$file = $parts[count($parts)-1];
-			$parts = explode(".", $file);
-			$schema = $parts[0];
-			echo $schema."\n";
-			db_migrate($schema);
-		}
-		echo "DONE\n";
-	}catch(Exception $e){
-		echo "FAILED\n";
-	}
-	exit;
-}
-function llog($label, $value, $toScreen=false){
-	$value = is_array($value)?json_encode($value,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT):$value;
-	if($toScreen){
-		$label = "<b>".$label."</b>";
-		$value = "<pre>".$value."</pre>";
-	}
-	if(REQ_MODE=="CLI"||$toScreen){
-		echo $label.":".$value.($toScreen?"<br>":"
-");
-	}else{
-		error_log($label.":".$value."
-");
-	}
-}
-
-?>

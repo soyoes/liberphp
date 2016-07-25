@@ -66,20 +66,20 @@ function hash_incr($data, $key, $amount){
 /**
  * set keyPath=>v data to assoc array
  * @param assoc array $data :{$k=>$v}
- * @param string $keyPath : "property1.subProperty1"
+ * @param string $keyPath : 'property1.subProperty1'
  * @param unknown_type $val
  * @return assoc array: return changes of target array. use to tell Observer;
  */
 function hash_set(&$data, $keyPath, $val){
-	$paths = explode(".", $keyPath);
+	$paths = explode('.', $keyPath);
 	$o = &$data;
-	$current_path = "";
+	$current_path = '';
 	$path_size = count($paths);
 	$key = $paths[0];
 	$org = isset($data[$key])? $data[$key]: null;
 	for ($i=0; $i<$path_size; $i++){
 		$path = $paths[$i];
-		if (is_string($o) && (str_starts($o, "{") || Strings::startsWith($o, "[")))
+		if (is_string($o) && (str_starts($o, '{') || Strings::startsWith($o, '[')))
 			$o = json_decode($o,true);
 		if ($i == $path_size-1){
 			$o[$path] = $val;
@@ -89,7 +89,7 @@ function hash_set(&$data, $keyPath, $val){
 			$o = &$o[$path];
 		}
 	}
-	return ["key"=>$key, "val"=>$data[$key], "org"=>$org];
+	return ['key'=>$key, 'val'=>$data[$key], 'org'=>$org];
 }
 
 
@@ -108,19 +108,19 @@ function hash_get(&$data, $keyPath, $autoCreate=true, $defaultValue=null){
 		}else
 			return $defaultValue;
 	}
-	$paths = explode(".", $keyPath);
+	$paths = explode('.', $keyPath);
 	$o = $data;
-	$current_path = "";
+	$current_path = '';
 	while (count($paths)>1){
 		$path = array_shift($paths);
-		if (is_string($o) && (str_starts($o, "{") || Strings::startsWith($o, "[")))
+		if (is_string($o) && (str_starts($o, '{') || Strings::startsWith($o, '[')))
 			$o = json_decode($o,true);
 		if (!isset($o[$path])){
 			return $defaultValue;
 		}
 		$o = $o[$path];
 	}
-	if (is_string($o) && (str_starts($o, "{") || Strings::startsWith($o, "[")))
+	if (is_string($o) && (str_starts($o, '{') || Strings::startsWith($o, '[')))
 		$o = json_decode($o,true);
 	$key = array_pop($paths);
 	if(!isset($o[$key]))
@@ -143,7 +143,7 @@ function hash_get(&$data, $keyPath, $autoCreate=true, $defaultValue=null){
 function arr2hash($arr, $keyName, $valueName=null){
 	$hash = [];
 	foreach ($arr as $e){
-		$hash["".$e[$keyName]] = $valueName==null ? $e : $e[$valueName];
+		$hash[''.$e[$keyName]] = $valueName==null ? $e : $e[$valueName];
 	}
 	return $hash;
 }
@@ -156,10 +156,10 @@ function arr2hash($arr, $keyName, $valueName=null){
  * @param:$firstOnly:TRUE|FALSE
  * @return:0=OK, 1=Nothing removed
  * @example:
- * 		ds_remove($myArr, array("id"=1)); //remove elements with id=1 from myArr
- * 		ds_remove($myArr, ["a","b"]); //remove elements which inside ["a","b"];
- * 		ds_remove($myArr, "a"); //remove elements which equals "a";
- * 		ds_remove($myArr, function($e){return $e==null;}); //remove elements which equals "";
+ * 		ds_remove($myArr, array('id'=1)); //remove elements with id=1 from myArr
+ * 		ds_remove($myArr, ['a','b']); //remove elements which inside ['a','b'];
+ * 		ds_remove($myArr, 'a'); //remove elements which equals 'a';
+ * 		ds_remove($myArr, function($e){return $e==null;}); //remove elements which equals '';
  *
  **/
 function ds_remove(&$arr, $conditions, $firstOnly=FALSE){
@@ -201,41 +201,42 @@ function ds_remove(&$arr, $conditions, $firstOnly=FALSE){
  * @param $arr: the target 
  * @param $conditions:
  * @param $firstOnly:TRUE=find the 1st only
- * @param $operator: "eq", "lt", "gt", "le", "ge", "ne"
+ * @param $operator: 'eq', 'lt', 'gt', 'le', 'ge', 'ne'
  * @return $firstOnly==TRUE? array(hash) / array | null
  * 
- * @example : a_find($myArr, array("id"=>10)); //find all elements with id==10 from list $myArr
- * @example : a_find($myArr, array("type"=>"card")); //find all elements with "type"=="card" from list $myArr
+ * @example : a_find($myArr, array('id'=>10)); //find all elements with id==10 from list $myArr
+ * @example : a_find($myArr, array('type'=>'card')); //find all elements with 'type'=='card' from list $myArr
  * 
  */
 function ds_find($arr, $opts,$firstOnly=false){
 	if(empty(Consts::$arr_query_filters))
 		Consts::$arr_query_filters = [
-		"=" 	=> function($o,$k,$v){return $o[$k]===$v;},
-		"!" 	=> function($o,$k,$v){return $o[$k]!==$v;},
-		"<" 	=> function($o,$k,$v){return $o[$k]<$v;},
-		">" 	=> function($o,$k,$v){return $o[$k]>$v;},
-		"<=" 	=> function($o,$k,$v){return $o[$k]<=$v;},
-		">=" 	=> function($o,$k,$v){return $o[$k]>=$v;},
-		"[]" 	=> function($o,$k,$v){return is_array($v)&&in_array($o[$k],$v);},
-		"![]" 	=> function($o,$k,$v){return is_array($v)?!in_array($o[$k],$v):true;},
-		"()" 	=> function($o,$k,$v){return is_array($v) && count($v)==2 && $o[$k]>=min($v[0],$v[1]) && $o[$k]<=max($v[0],$v[1]);},
-		"!()" 	=> function($o,$k,$v){return !is_array($v) || count($v)<2 || $o[$k]<min($v[0],$v[1]) || $o[$k]>max($v[0],$v[1]);},
-		"?"  	=> function($o,$k,$v){return !empty($o[$k]) && !empty($v) && str_has($o[$k], $v); },
-		"!?"  	=> function($o,$k,$v){return empty($o[$k]) || !empty($v) || !str_has($o[$k], $v); },
-		"~" 	=> function($o,$k,$v){return !empty($o[$k]) && !empty($v) && preg_match("/".$v."/", $o[$k]);},
-		"!~"	=> function($o,$k,$v){return empty($o[$k]) || !empty($v) || !preg_match("/".$v."/", $o[$k]);},
-		"~~" 	=> function($o,$k,$v){return !empty($o[$k]) && !empty($v) && preg_match("/".$v."/i", $o[$k]);},
-		"!~~"	=> function($o,$k,$v){return empty($o[$k]) || !empty($v) || !preg_match("/".$v."/i", $o[$k]);},
+		'=' 	=> function($o,$k,$v){return $o[$k]===$v;},
+		'!' 	=> function($o,$k,$v){return $o[$k]!==$v;},
+		'<' 	=> function($o,$k,$v){return $o[$k]<$v;},
+		'>' 	=> function($o,$k,$v){return $o[$k]>$v;},
+		'<=' 	=> function($o,$k,$v){return $o[$k]<=$v;},
+		'>=' 	=> function($o,$k,$v){return $o[$k]>=$v;},
+		'[]' 	=> function($o,$k,$v){return is_array($v)&&in_array($o[$k],$v);},
+		'![]' 	=> function($o,$k,$v){return is_array($v)?!in_array($o[$k],$v):true;},
+		'()' 	=> function($o,$k,$v){return is_array($v) && count($v)==2 && $o[$k]>=min($v[0],$v[1]) && $o[$k]<=max($v[0],$v[1]);},
+		'!()' 	=> function($o,$k,$v){return !is_array($v) || count($v)<2 || $o[$k]<min($v[0],$v[1]) || $o[$k]>max($v[0],$v[1]);},
+		'?'  	=> function($o,$k,$v){return !empty($o[$k]) && !empty($v) && str_has($o[$k], $v); },
+		'!?'  	=> function($o,$k,$v){return empty($o[$k]) || !empty($v) || !str_has($o[$k], $v); },
+		'~' 	=> function($o,$k,$v){return !empty($o[$k]) && !empty($v) && preg_match('/'.$v.'/', $o[$k]);},
+		'!~'	=> function($o,$k,$v){return empty($o[$k]) || !empty($v) || !preg_match('/'.$v.'/', $o[$k]);},
+		'~~' 	=> function($o,$k,$v){return !empty($o[$k]) && !empty($v) && preg_match('/'.$v.'/i', $o[$k]);},
+		'!~~'	=> function($o,$k,$v){return empty($o[$k]) || !empty($v) || !preg_match('/'.$v.'/i', $o[$k]);},
 	];
 	if(empty($opts))return false; 
-	$res = null;
+	$res = [];
 	foreach ($arr as $a){
 		$match = true;
 		foreach ($opts as $k=>$v){
 			$cmd = strstr($k, '@');
+			$cmd = !$cmd ? "=":substr($k, $cmd);
 			$func = Consts::$arr_query_filters[$cmd];
-			if (!$func($a[$k],$v)){
+			if ($func && !$func($a,$k,$v)){
 				$match = false;break;
 			}
 		}
@@ -254,7 +255,7 @@ function ds_find($arr, $opts,$firstOnly=false){
  * @param:$sortOrder:1=ASC, 0=DESC
  * @return:sorted array
  * @uses: only numerice | string values can be sorted
- * @example: a_sort($myArr, "id"); //sort myArr by key id with ASC order.
+ * @example: a_sort($myArr, 'id'); //sort myArr by key id with ASC order.
  *
  **/
 function ds_sort($arr, $sortKey=null, $sortOrder=1, $comparator=null){
@@ -262,7 +263,7 @@ function ds_sort($arr, $sortKey=null, $sortOrder=1, $comparator=null){
 		if($comparator==null){
 			$cfmt = '$av=$a["%s"];if(!isset($av))$av=0;$bv=$b["%s"];if(!isset($bv))$bv=0;if($av==$bv){return 0;} return is_string($av)?strcmp($av,$bv)*%d:($av>$bv)?-1*%d:1*%d;';
 			$code = sprintf($cfmt, $sortKey, $sortKey, $sortOrder, $sortOrder,$sortOrder);
-			$cmp = create_function('$a, $b', $code);
+			$cmp = create_function("$a, $b", $code);
 			usort($arr, $cmp);
 		}else
 			usort($arr, $comparator);
@@ -277,7 +278,7 @@ function ds_sort($arr, $sortKey=null, $sortOrder=1, $comparator=null){
  * Get milliseconds
  */
 function ms(){
-    list($usec, $sec) = explode(" ", microtime());
+    list($usec, $sec) = explode(' ', microtime());
     return ((int)((float)$usec*1000) + (int)$sec*1000);
 }
 
@@ -291,11 +292,11 @@ function fs_put_ini($file, array $options){
 		foreach($values as $key => $val){
 			if(is_array($val)){
 				foreach($val as $k =>$v)
-					$tmp .= "{$key}[$k] = \"$v\"\n";
+					$tmp .= "{$key}[$k] = \'$v\'\n";
 			}else
-				$tmp .= "$key = \"$val\"\n";
+				$tmp .= "$key = \'$val\'\n";
 		}
-		$tmp .= "\n";
+		$tmp .= '\n';
 	}
 	file_put_contents($file, $tmp);
 	unset($tmp);
@@ -315,7 +316,7 @@ function fs_archived_path ($id, $tokenLength=1000){
  *Mkdir and subdir automatically
  */
 function fs_mkdir($out){
-	$folder = (str_has($out,"."))? preg_replace('/[^\/]*\.[^\/]*$/','',$out):$out;
+	$folder = (str_has($out,'.'))? preg_replace('/[^\/]*\.[^\/]*$/','',$out):$out;
 	if(!file_exists($folder))
 		mkdir($folder, 0775, TRUE);
 }
@@ -328,25 +329,25 @@ function fs_xml2arr($xmlString){
  * Get Annotations from comment string (multi-line)
  * @param $comm: multi-line comment string.
  * @example:
- * 	fs_annotations("*this is a test function\n@param $a:int\n@param $b:string\n@permission:775\n*");
+ * 	fs_annotations('*this is a test function\n@param $a:int\n@param $b:string\n@permission:775\n*');
  *  //the output will be
  *  Array(
- *  	"desc"	=> "this is a test function",
- *   	"param"	=> [
- *   		["attr"=>"$a", "value"=>"int"],
- *   		["attr"=>"$b", "value"=>"string"],	
+ *  	'desc'	=> 'this is a test function',
+ *   	'param'	=> [
+ *   		['attr'=>'$a', 'value'=>'int'],
+ *   		['attr'=>'$b', 'value'=>'string'],	
  *   	],
- *   	"permission"	=> "775"
+ *   	'permission'	=> '775'
  *  ) 
  *   
  */
 function fs_annotations($comm){
-	$comm = explode("\n",preg_replace(['/\/\*\s*/m','/\s*\*\/\s*/m'],'',$comm));
+	$comm = explode('\n',preg_replace(['/\/\*\s*/m','/\s*\*\/\s*/m'],'',$comm));
 	$anno = [];
 	$rows = count($comm);
 	$tag = null; $value=[]; $attr= null;
 	for($i=0;$i<=$rows;$i++){
-		$cm = trim(preg_replace('/^\s*\**\s*/','',$i<$rows?$comm[$i]:''));
+		$cm = trim(preg_replace('/^[\s\*]*\s*/','',$i<$rows?$comm[$i]:''));
 		preg_match_all('/^@(?P<tag>[a-zA-Z]+)\s*(?P<attr>[a-zA-Z\d_\$]*)\s*[:=]\s*(?P<value>.*)/i',$cm,$matches);
 		//save tag
 		if(!empty($matches['tag']) || $i==$rows){
@@ -359,8 +360,8 @@ function fs_annotations($comm){
 		//new tag
 		if(!empty($matches['tag'])){
 			$tag = trim(strtolower($matches['tag'][0]));
-			$value []= preg_replace('/^:\s*/','',trim($matches['value'][0]));
-			$attr = preg_replace('/^:\s*/','',$matches['attr'][0]);
+			$value []= preg_replace('/^[:\s]*/','',trim($matches['value'][0]));
+			$attr = preg_replace('/^[:\s]*/','',$matches['attr'][0]);
 		}else if(!empty($cm)){
 			$value []= $cm;
 		}
@@ -375,22 +376,22 @@ function fs_annotations($comm){
  * get source tree of php file, auto include
  * @param $phpfile: php file full path
  * @example:
- * 	fs_src_tree("/tmp/test.php");
+ * 	fs_src_tree('/tmp/test.php');
  * 	//result will be something like this
  * 	Array(
- * 		"annotations"	=> [...] //file comment annotations
- * 		"functions" => [ 	//non-class functions
- * 			"func1" => ["annotations"=>[...], "params"=>[...]],
- * 			"func2" => ["annotations"=>[...], "params"=>[...]],
+ * 		'annotations'	=> [...] //file comment annotations
+ * 		'functions' => [ 	//non-class functions
+ * 			'func1' => ['annotations'=>[...], 'params'=>[...]],
+ * 			'func2' => ['annotations'=>[...], 'params'=>[...]],
  * 		],
- * 		"classes"	=> [
- * 			"annotations"=>[...],
- * 			"properties"=>[
- * 				"prop1"	=> [visibility=>public, static=>1],
- * 				"prop2"	=> [visibility=>public, static=>0],
+ * 		'classes'	=> [
+ * 			'annotations'=>[...],
+ * 			'properties'=>[
+ * 				'prop1'	=> [visibility=>public, static=>1],
+ * 				'prop2'	=> [visibility=>public, static=>0],
  * 			],
- * 			"methods"=>[
- * 				"method1" => [visibility=>public, static=>1, abstract=>0, annotations=>[...], params=>[...]],
+ * 			'methods'=>[
+ * 				'method1' => [visibility=>public, static=>1, abstract=>0, annotations=>[...], params=>[...]],
  * 				...
  * 			],
  * 		]
@@ -401,7 +402,7 @@ function fs_src_tree($phpfile){
 	require_once $phpfile;
 	//file comment
 	preg_match_all('/<\?php\s*\/\*+\s*(?P<comment>.*?)\*\/\s*/sm', $src, $fdef);
-	$comment = $fdef["comment"][0];
+	$comment = $fdef['comment'][0];
 	//classes
 	preg_match_all('/^(abstract)*\s*(class|trait)\s+(?P<cls>[\w\d]+)\s*/mi', $src, $ma);
 	$classes = [];
@@ -409,7 +410,7 @@ function fs_src_tree($phpfile){
 		foreach ($ma['cls'] as $cls){
 			$classes[$cls] =[];
 			$cr = new ReflectionClass($cls);
-			$classes[$cls]["name"] = $cls;
+			$classes[$cls]['name'] = $cls;
 			//parent
 			$parent = $cr->getParentClass();
 			if($parent) $classes[$cls]['parent']=$parent->getName();
@@ -421,14 +422,14 @@ function fs_src_tree($phpfile){
 			$classes[$cls]['trait']=$cr->isTrait();
 			//class annotations
 			$comm = $cr->getDocComment();
-			if($comm==$comment) $comment="";
+			if($comm==$comment) $comment='';
 			$classes[$cls]['annotations']=fs_annotations($comm);
 			//methods
 			$methods = $cr->getMethods();
 			foreach ($methods as $mr){
 				$args = array_map(function($e){return $e->name;}, $mr->getParameters());
 				$anno = fs_annotations($mr->getDocComment());
-				$classes[$cls]["methods"][$mr->getName()] = [
+				$classes[$cls]['methods'][$mr->getName()] = [
 				'name'	=> $mr->getName(),
 				'classname'=>$cls,
 				'annotations'=>$anno, 'params'=>$args,
@@ -443,7 +444,7 @@ function fs_src_tree($phpfile){
 			//properties
 			$props = $cr->getProperties();
 			foreach ($props as $pr){
-				$classes[$cls]["properties"][$pr->getName()] = [
+				$classes[$cls]['properties'][$pr->getName()] = [
 				'visibility' => $pr->isPrivate()?'private':($pr->isProtected()?'protected':'public'),
 				'static' => $pr->isStatic()
 				];
@@ -458,7 +459,7 @@ function fs_src_tree($phpfile){
 			$ref = new ReflectionFunction($fn);
 			$args = array_map(function($e){return $e->name;}, $ref->getParameters());
 			$comm = $ref->getDocComment();
-			if($comm==$comment) $comment="";
+			if($comm==$comment) $comment='';
 			$anno = fs_annotations($comm);
 			$funcs[$fn] = ['annotations'=>$anno, 'params'=>$args, 'name'=>$fn];
 		}

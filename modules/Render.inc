@@ -17,7 +17,7 @@
 class Render {
 	static $path;
 
-	private static $var_prefix = "LBR_";
+	private static $var_prefix = 'LBR_';
 
 	private static $output_path;
 	private static $ext = '.html';
@@ -122,8 +122,8 @@ class Render {
 		
 		//CustomTag make regex compression
 		$tags_regexp = (!empty($custom_tags)) ?
-			"(%|=|if|elseif|else|break|ignore|for|var|include|".join('|',$custom_tags).")":
-			"(%|=|if|elseif|else|break|ignore|for|var|include)";
+			'(%|=|if|elseif|else|break|ignore|for|var|include|'.join('|',$custom_tags).')':
+			'(%|=|if|elseif|else|break|ignore|for|var|include)';
 		
 		while($code = array_shift($rows)){
 			$matched = false;
@@ -157,10 +157,10 @@ class Render {
 							$len = count($parts);
 							$indent ++;
 							switch($len){
-								case 1:$phpcode .= '<?php foreach('.$parts[0].' as $key=>$value) { ?>';break;
-								case 2:$phpcode .= '<?php foreach('.$parts[0].' as $key=>'.$parts[1].') { ?>';break;
+								case 1:$phpcode .= '<?php foreach('.$parts[0]." as $".self::$var_prefix."_key=>$".self::$var_prefix."_value) { ?>";break;
+								case 2:$phpcode .= '<?php foreach('.$parts[0]." as $".self::$var_prefix."_key=>".$parts[1].") { ?>";break;
 								default :
-									if(preg_match('/^\d+$/', $parts[1])&&preg_match('/^\d+$/', $parts[2])){
+									if((preg_match('/^\d+$/', $parts[1])) || (preg_match('/^\$/', $parts[1])) && (preg_match('/^\d+$/', $parts[2]))|| (preg_match('/^\$/', $parts[2]))){
 										$phpcode .= '<?php for($'.$parts[0].'='.$parts[1].';$'.$parts[0].'<'.$parts[2].';$'.$parts[0].'++) { ?>';
 									}else
 										$phpcode .= '<?php foreach('.$parts[0].' as '.$parts[1].'=>'.$parts[2].') { ?>';break;
@@ -201,8 +201,8 @@ class Render {
 	}
 
 	function include_template($f){
-		$r = $this->render_file($f.".html");
-		$output = "";
+		$r = $this->render_file($f.'.html');
+		$output = '';
 		if($r) {
 			ob_start(); include($r);
 			$output = ob_get_contents();

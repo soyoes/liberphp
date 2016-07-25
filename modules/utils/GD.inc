@@ -388,6 +388,7 @@ class GD{
 		$imgData = str_starts($photo,"data")? base64_decode(explode(',', $photo)[1]):base64_decode($photo);
 		$src = imagecreatefromstring($imgData);
 		error_log("GD::export out_dir=$out_dir");
+		error_log("GD::export out_file=$out_file");
 		fs_mkdir($out_dir);
 		$outf = "$out_dir/$out_file.$out_ext";
 		if($out_ext=="jpg")

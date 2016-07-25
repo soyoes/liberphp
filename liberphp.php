@@ -161,18 +161,6 @@ function cli_migrate(){
 	}
 	exit;
 }
-function llog(\$label, \$value, \$toScreen=false){
-	\$value = is_array(\$value)?json_encode(\$value,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT):\$value;
-	if(\$toScreen){
-		\$label = "<b>".\$label."</b>";
-		\$value = "<pre>".\$value."</pre>";
-	}
-	if(REQ_MODE=="CLI"||\$toScreen){
-		echo \$label.":".\$value.(\$toScreen?"<br>":"\n");
-	}else{
-		error_log(\$label.":".\$value."\n");
-	}
-}
 
 ?>
 
@@ -198,7 +186,7 @@ EOF2;
 		$fo= preg_replace(['/(require_once LIBER_DIR\.\'modules\'\.__SLASH__.*)/',"/(^[\r\n]*|[\r\n]+)[\s\t]*[\r\n]+/"],['',"\n"],$fo);
 		$out.=$fo;
 	}
-	$out = str_replace('error_log','llog',$out);
+	//$out = str_replace('error_log','llog',$out);
 	$out.=$surfix;
 	file_put_contents($pwd."/liber.php", $out);
 }
