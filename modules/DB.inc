@@ -249,7 +249,7 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 		}
 	}
 	if($withCount){
-		$sql = 'SELECT count(*) FROM '.$table.preg_replace('/ORDER BY\s*(.*)\s*([LIMIT .*]*)/', '${3}',$optStr);
+		$sql = 'SELECT count(*) FROM '.$table.preg_replace('/(ORDER\s+BY)*\s*(.*)\s*(LIMIT (.*))*/', '${3}',$optStr);
 		$cnt = pdo_count($pdo,$sql, $datas, $opts['useCache']);
 		return ['count'=>$cnt,'result'=>$res];
 	}else{
