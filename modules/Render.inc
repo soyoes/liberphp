@@ -91,6 +91,8 @@ class Render {
 	 */
 	function render_file($file,$template_code){
 		$prefix  = 'template-' . REQ::getTemplateType() . '-';
+		if(!empty($this->data['__namespace']))
+			$prefix .= $this->data['__namespace']."-";
 		$filepath = self::$path.$file;
 		if(!file_exists($filepath)) return false;
 		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
