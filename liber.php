@@ -1330,10 +1330,10 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 				$condition[$tc.'@in']=join(',',$ds[$col]);
 			}else
 				$condition[$tc]=$ds[$col][0];
-			$re = pdo_find($pdo,$def['table'],$condition, $withCount, $pdoOpt);
+			$re = pdo_find($pdo,$def['table'],$condition, false, $pdoOpt);
 			$extras[$conn]=[];
 			foreach ($re as $r) {
-				$k = $r.'['.$tc.']';
+				$k = $r[$tc];
 				if(!isset($extras[$conn][$k])) 
 					$extras[$conn][$k]=[];	
 				$extras[$conn][$k][] = $r;
@@ -1470,7 +1470,7 @@ function db_find1st($table, $opts=[], $pdoOpt=null){
 function db_import($table, $datas){
 	return pdo_import(db_conn(), $table, $datas, Consts::$schema_reg, Consts::$schema_upd);
 }
-function db_make_query(&$table, $opts=[], $omit=[]){
+function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 	db_init_filters();
 	if(!isset($table))return false;
 		list($table,$schemaname) = explode('@',$table);
@@ -1481,6 +1481,7 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 	$schema = $schemaDef['schema'];
 	$connect = $schemaDef['connect'];
 	$connNames = !empty($connect) ?array_keys($connect):[];
+	if($colPrefix)$colPrefix.=".";
 	$data = [];
 	$conns = [];
 		if(is_hash($opts) && !empty($opts['fields']) && 
@@ -1515,9 +1516,9 @@ function db_make_query(&$table, $opts=[], $omit=[]){
 		if(!empty($opts['fields']) && $opts['fields']!='*'){
 			$colStr = is_string($opts['fields'])? explode(',',preg_replace('/[`\s]/','',$opts['fields'])):$opts['fields'];
 			$colStr = array_filter($colStr, function($e) use($schema, $omit){return array_key_exists($e, $schema) && !in_array($e,$omit);});
-			$colStr = '`'.join('`,`', $colStr).'`';
+			$colStr = $colPrefix? $colPrefix.'`'.join('`,'.$colPrefix.'`', $colStr).'`':'`'.join('`,`', $colStr).'`';
 		}else if($colStr=='*' && !empty($schemaDef['general']['fields'])){
-			$colStr = '`'.str_replace(',', '`,`', $schemaDef['general']['fields']).'`';
+			$colStr = $colPrefix? $colPrefix.'`'.str_replace(',', '`,'.$colPrefix.'`', $schemaDef['general']['fields']).'`':'`'.str_replace(',', '`,`', $schemaDef['general']['fields']).'`';
 		}
 	}
 	if(is_hash($opts)){
