@@ -1159,12 +1159,12 @@ function pdo_conn($opts=null, $pdoOpts=null){
 }
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
-	error_log($sql);
-		if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
+			if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
-						return false;
+				error_log("DB ERR:".json_encode($datas));	
+		return false;
 	}
 	return $isQeury? $statement->fetchAll($pdoOpt):true;
 }
@@ -1815,10 +1815,16 @@ class Render {
 		$this->data[$key] = $value;	
 	}
 	function render($file,$data=[],$layout=null,$renderOnly=false){
+		$req = REQ::getInstance();
 		$template = isset($layout)? $layout : $this->layout;
-		$key = 'template-'. REQ::getTemplateType() . "-" .$template;
+		$ns = $req->getNamespace();
+		$ns = empty($ns)?"":$ns."-";
+		$key = 'template-'. REQ::getTemplateType()."-".$ns.$template;
 		$wrapper_code = cache_get($key, function($f){
-			$key_prefix = 'template-'. REQ::getTemplateType() . "-";
+			$req = REQ::getInstance();
+			$ns = $req->getNamespace();
+			$ns = empty($ns)?"":$ns."-";
+			$key_prefix = 'template-'.REQ::getTemplateType()."-".$ns;
 			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
 		},false);
 				if(!empty($data))
