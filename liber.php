@@ -679,9 +679,9 @@ function permission(){
 			return $permission; 
 		},false);
 		$act = $req->getAction();
-				$permission = !empty($tree[$act])?$tree[$act]:'F';
+				$permission = isset($tree[$act])?$tree[$act]:'F';
 	}
-	$bits = isset($permission)&&!empty($permission[$group])?$permission[$group]:($group==0?'8':'F');
+	$bits = isset($permission)&&isset($permission[$group])?$permission[$group]:($group==0?'8':'F');
 	if($bits=='0') return $group==0? 401 : 403;
 		$bits = base_convert($bits, 16, 2); 
 		$bitIdx = array_search($req->getMethod(), ['get','post','put','delete']);
@@ -906,18 +906,18 @@ function fs_xml2arr($xmlString){
 	return json_decode(json_encode((array)simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA)), TRUE);
 }
 function fs_annotations($comm){
-	$comm = explode('\n',preg_replace(['/\/\*\s*/m','/\s*\*\/\s*/m'],'',$comm));
+	$comm = explode("\n",preg_replace(['/\/\*+\s*/m','/\s*\*+\/\s*/m'],'',$comm));
 	$anno = [];
 	$rows = count($comm);
 	$tag = null; $value=[]; $attr= null;
 	for($i=0;$i<=$rows;$i++){
-		$cm = trim(preg_replace('/^[\s\*]*\s*/','',$i<$rows?$comm[$i]:''));
-		preg_match_all('/^@(?P<tag>[a-zA-Z]+)\s*(?P<attr>[a-zA-Z\d_\$]*)\s*[:=]\s*(?P<value>.*)/i',$cm,$matches);
+		$cm = trim(preg_replace('/^[\s\*]*/','',$i<$rows?$comm[$i]:''));
+		preg_match_all('/^@(?P<tag>[a-zA-Z]+)\s*(?P<attr>[^:^=]*)\s*[:=]*\s*(?P<value>.*)/i',$cm,$matches);
 				if(!empty($matches['tag']) || $i==$rows){
 			if(empty($tag))$tag = 'desc';
 			if(empty($anno[$tag]))
 				$anno[$tag] = [];
-			$anno[$tag] []= ['value'=>join('\n', $value),'attr'=>$attr];
+			$anno[$tag] []= ['value'=>join("\n", $value),'attr'=>$attr];
 			$tag = null; $value=[]; $attr = null;
 		}
 				if(!empty($matches['tag'])){
@@ -1251,8 +1251,12 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
 	}
 	$sql = '';
-	if(array_key_exists($updName,$schema) && !isset($data[$updName]))
+	error_log("updname = ".array_key_exists($updName,$schema));
+	error_log("updname = ".$data[$updName]);
+	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
+		error_log("set upd at".ms());
 		$data[$updName] = ms();
+	}
 	$qdatas = [];
 	if ($isUpdate){
 		if($id)cache_del($table.'_'.$id);

@@ -948,10 +948,11 @@ function permission(){
 		},false);
 
 		$act = $req->getAction();
+
 		//$permission = isset($tree[$act])?$tree[$act]:$tree['@file'];
-		$permission = !empty($tree[$act])?$tree[$act]:'F';
+		$permission = isset($tree[$act])?$tree[$act]:'F';
 	}
-	$bits = isset($permission)&&!empty($permission[$group])?$permission[$group]:($group==0?'8':'F');//bits is hex string (len=1)
+	$bits = isset($permission)&&isset($permission[$group])?$permission[$group]:($group==0?'8':'F');//bits is hex string (len=1)
 
 	if($bits=='0') return $group==0? 401 : 403;
 	

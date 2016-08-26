@@ -342,19 +342,19 @@ function fs_xml2arr($xmlString){
  *   
  */
 function fs_annotations($comm){
-	$comm = explode('\n',preg_replace(['/\/\*\s*/m','/\s*\*\/\s*/m'],'',$comm));
+	$comm = explode("\n",preg_replace(['/\/\*+\s*/m','/\s*\*+\/\s*/m'],'',$comm));
 	$anno = [];
 	$rows = count($comm);
 	$tag = null; $value=[]; $attr= null;
 	for($i=0;$i<=$rows;$i++){
-		$cm = trim(preg_replace('/^[\s\*]*\s*/','',$i<$rows?$comm[$i]:''));
-		preg_match_all('/^@(?P<tag>[a-zA-Z]+)\s*(?P<attr>[a-zA-Z\d_\$]*)\s*[:=]\s*(?P<value>.*)/i',$cm,$matches);
+		$cm = trim(preg_replace('/^[\s\*]*/','',$i<$rows?$comm[$i]:''));
+		preg_match_all('/^@(?P<tag>[a-zA-Z]+)\s*(?P<attr>[^:^=]*)\s*[:=]*\s*(?P<value>.*)/i',$cm,$matches);
 		//save tag
 		if(!empty($matches['tag']) || $i==$rows){
 			if(empty($tag))$tag = 'desc';
 			if(empty($anno[$tag]))
 				$anno[$tag] = [];
-			$anno[$tag] []= ['value'=>join('\n', $value),'attr'=>$attr];
+			$anno[$tag] []= ['value'=>join("\n", $value),'attr'=>$attr];
 			$tag = null; $value=[]; $attr = null;
 		}
 		//new tag
