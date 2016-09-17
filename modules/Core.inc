@@ -165,6 +165,9 @@ function keygen($len,$chars=false){
  * @param $reason: messages to send back to the client.
  */
 function error($code, $contentType, $reason=''){
+	if(empty($reason)&&!empty($contentType)&&!in_array($contentType, ['html','json','text'])){
+		$reason=$contentType;$contentType='json';
+	}
 	$msg = Consts::$error_codes[''.$code];
 	header('HTTP/1.1 '.$code.' '.$msg, FALSE);
 	$req = REQ::getInstance();
@@ -394,7 +397,7 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 
 	//delegate
 	$uri = PathDelegate::rewriteURI($uri);
-	
+
 	$uri = htmlEntities($uri, ENT_QUOTES|ENT_HTML401);
 	$uri = preg_replace(['/\sHTTP.*/','/(\/)+/','/\/$/','/^[a-zA-Z0-9]/'], ['','/','',"/$1"], $uri);
 	$parts = parse_url('http://'.$host.$uri);
@@ -403,19 +406,17 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	$fmts = ['json','bson','text','html','csv'];
 	if(isset($parts['query']))
 		parse_str(str_replace('&amp;', '&', $parts['query']),$params);
-
 	//FIXME : localhost
 	if(($host=='localhost'||$host=="127.0.0.1") && (str_has($uri,'liber.php')||str_has($uri,'index.php')) && isset($params['__URL__']) ){
 		$uri = $params['__URL__'];
 		unset($params['__URL__']);
 	}
 	list($uri, $ext) = explode('.', $uri);
-	
 	$specifiedFmt = in_array($ext,$fmts);
 	if($ext==1||$ext==""||$specifiedFmt){//action
 		preg_match_all('/\/(?P<digit>\d+)\/*/', $uri, $matches);
 		if(!empty($matches['digit'])){
-			$params['@id'] = (int)$matches['digit'][0];
+			$params['@id'] = intval($matches['digit'][0]);
 			$uri = preg_replace('/\/\d+\/*/', '/', $uri);
 		}
 		$rest = parse_rest_uri($uri, $method, $params);
@@ -427,11 +428,9 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 }
 
 function parse_rest_uri($uri, $method, &$params){
-
 	$uri = preg_replace('/(^\/)|(\/$)/','',$uri);
 	$uparts =ds_remove(explode('/',$uri), '');
 	$method = strtolower($method);
-	
 	if ($method == 'put' || $method == 'delete') {
         parse_str(file_get_contents('php://input'), $input);
         $params = array_merge($params, $input);
@@ -456,7 +455,6 @@ function parse_rest_uri($uri, $method, &$params){
 	$len = count($uparts);
 	if(empty($uparts)){$uparts=[$controller,$action];}
 	if(count($uparts)==1)$uparts[]=$action;
-
 	if($uri==''){
 		$res['uri'] = $controller;
 	}else if(in_array($uri,$resources['namespaces'])){//default controller
@@ -590,6 +588,7 @@ class REQ {
 			exit;
 		}
 		$req = new REQ();
+		self::$instances[]=$req; // push to running stack
 		$ua = parse_user_agent($ua);
 		self::$client_type = $ua['type'];
 		self::$client_bot = $ua['bot'];
@@ -598,18 +597,17 @@ class REQ {
 
 		if(Consts::$session_enable && !isset($_SESSION))
 			Session::start();
-	
-		self::$instances[]=$req; // push to running stack
+
 		if(count(self::$instances)>1){
 			$req->is_thread = true;
 		}
-		
+
 		if(!empty($req->data['static']))
 			return render_html($req->data['static']);
-	
+
 		return $req->process();
 	}
-	
+
 
 	/**
 	 * Preload all schemas, controllers, view files ... and save to APC
@@ -733,7 +731,6 @@ class REQ {
             error_log('PARAMETERS: ' . json_encode($this->params));
         }
         try{
-        	
 			$data = $this->data;
 			$filterNames = [];$filterCls = [];
 			foreach (Consts::$filters as $fn => $pt) {

@@ -146,8 +146,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
 	}
 	$sql = '';
-	if(array_key_exists($updName,$schema) && !isset($data[$updName]))
+	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
 		$data[$updName] = ms();
+	}
 	$qdatas = [];
 	if ($isUpdate){
 		if($id)cache_del($table.'_'.$id);

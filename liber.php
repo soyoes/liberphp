@@ -130,6 +130,9 @@ function keygen($len,$chars=false){
 	return $key;
 }
 function error($code, $contentType, $reason=''){
+	if(empty($reason)&&!empty($contentType)&&!in_array($contentType, ['html','json','text'])){
+		$reason=$contentType;$contentType='json';
+	}
 	$msg = Consts::$error_codes[''.$code];
 	header('HTTP/1.1 '.$code.' '.$msg, FALSE);
 	$req = REQ::getInstance();
@@ -298,7 +301,7 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	$specifiedFmt = in_array($ext,$fmts);
 	if($ext==1||$ext==""||$specifiedFmt){		preg_match_all('/\/(?P<digit>\d+)\/*/', $uri, $matches);
 		if(!empty($matches['digit'])){
-			$params['@id'] = (int)$matches['digit'][0];
+			$params['@id'] = intval($matches['digit'][0]);
 			$uri = preg_replace('/\/\d+\/*/', '/', $uri);
 		}
 		$rest = parse_rest_uri($uri, $method, $params);
@@ -415,14 +418,14 @@ class REQ {
 			exit;
 		}
 		$req = new REQ();
-		$ua = parse_user_agent($ua);
+		self::$instances[]=$req; 		$ua = parse_user_agent($ua);
 		self::$client_type = $ua['type'];
 		self::$client_bot = $ua['bot'];
 		$req->data = parse_uri($uri, $method, $params, $ua);
 		$req->params = $req->data['params'];
 		if(Consts::$session_enable && !isset($_SESSION))
 			Session::start();
-		self::$instances[]=$req; 		if(count(self::$instances)>1){
+		if(count(self::$instances)>1){
 			$req->is_thread = true;
 		}
 		if(!empty($req->data['static']))
@@ -1251,10 +1254,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
 	}
 	$sql = '';
-	error_log("updname = ".array_key_exists($updName,$schema));
-	error_log("updname = ".$data[$updName]);
 	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
-		error_log("set upd at".ms());
 		$data[$updName] = ms();
 	}
 	$qdatas = [];
