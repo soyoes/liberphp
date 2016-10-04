@@ -253,7 +253,9 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 		//FIXME: difficult sql query
 		$sql = 'SELECT count(*) FROM '.$table.preg_replace(['/ORDER\s+BY.*/i','/LIMIT\s.*/i'], '',$optStr);
 		$cnt = pdo_count($pdo,$sql, $datas, $opts['useCache']);
-		return ['count'=>$cnt,'result'=>$res];
+		$key_cnt = property_exists('Consts', 'schema_total')? Consts::$schema_total:'count';
+		$key_res = property_exists('Consts', 'schema_result')? Consts::$schema_result:'result';
+		return [$key_cnt=>$cnt,$key_res=>$res];
 	}else{
 		return $res;
 	}
