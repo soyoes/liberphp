@@ -57,6 +57,10 @@ function is_hash($arr){
 	return !empty($arr) && is_array($arr) && array_keys($arr) !== range(0, count($arr) - 1);
 }
 
+function is_json($str){
+	return is_object(json_decode($str));
+}
+
 function hash_incr($data, $key, $amount){
 	$v = self::get($data,$key,true,0);
 	$v += $amount;

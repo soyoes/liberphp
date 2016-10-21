@@ -730,6 +730,9 @@ function is_url($str){
 function is_hash($arr){
 	return !empty($arr) && is_array($arr) && array_keys($arr) !== range(0, count($arr) - 1);
 }
+function is_json($str){
+	return is_object(json_decode($str));
+}
 function hash_incr($data, $key, $amount){
 	$v = self::get($data,$key,true,0);
 	$v += $amount;
@@ -1162,7 +1165,9 @@ function pdo_conn($opts=null, $pdoOpts=null){
 }
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
-			if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
+	error_log($sql);
+	error_log(json_encode($datas));	
+	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
@@ -1355,7 +1360,9 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 	if($withCount){
 				$sql = 'SELECT count(*) FROM '.$table.preg_replace(['/ORDER\s+BY.*/i','/LIMIT\s.*/i'], '',$optStr);
 		$cnt = pdo_count($pdo,$sql, $datas, $opts['useCache']);
-		return ['count'=>$cnt,'result'=>$res];
+		$key_cnt = property_exists('Consts', 'schema_total')? Consts::$schema_total:'count';
+		$key_res = property_exists('Consts', 'schema_result')? Consts::$schema_result:'result';
+		return [$key_cnt=>$cnt,$key_res=>$res];
 	}else{
 		return $res;
 	}
@@ -1496,7 +1503,7 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 				if(!isset($connect[$tbl]))continue;				if(!isset($conns[$tbl])) $conns[$tbl] = ['fields'=>[$connect[$tbl]['target_column']]]+$connect[$tbl];
 				$conns[$tbl]['fields'] = array_merge($conns[$tbl]['fields'],explode(',',$ma['cols'][$i++])) ;
 			}
-			$opts['fields'] = preg_replace('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', '', $opts['fields']);
+			$opts['fields'] = preg_replace(['/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/','/^,/','/,$/'], '', $opts['fields']);
 		}
 				$cols =  explode(',',$opts['fields']);
 		$ncols = [];
@@ -1514,6 +1521,12 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 				if($f=='*' || array_key_exists($f, $schema))
 					$ncols[]=$f;
 			}
+		}
+		$connFields = array_keys($conns);
+		foreach ($connFields as $cf) {
+			if($opts['fields']!='*' && !preg_match('/\b'.$connect[$cf]['target_column'].'\b/i',!$opts['fields'])){
+				$ncols []= $connect[$cf]['column'];
+			}	
 		}
 		$colStr = '`'.join('`,`',$ncols).'`';
 	}else{

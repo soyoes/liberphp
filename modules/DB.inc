@@ -49,8 +49,8 @@ function pdo_conn($opts=null, $pdoOpts=null){
  **/
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
-	//error_log($sql);
-	// error_log(json_encode($datas));	
+	error_log($sql);
+	error_log(json_encode($datas));	
 	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
@@ -511,7 +511,8 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 				if(!isset($conns[$tbl])) $conns[$tbl] = ['fields'=>[$connect[$tbl]['target_column']]]+$connect[$tbl];
 				$conns[$tbl]['fields'] = array_merge($conns[$tbl]['fields'],explode(',',$ma['cols'][$i++])) ;
 			}
-			$opts['fields'] = preg_replace('/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/', '', $opts['fields']);
+			$opts['fields'] = preg_replace(['/\b(?P<tbl>[\w\d_]+)\{(?P<cols>[^\}]+)\}/','/^,/','/,$/'], '', $opts['fields']);
+
 		}
 		//STEP 2 : solve connName,connName1.col1,connName2.col2
 		$cols =  explode(',',$opts['fields']);
@@ -530,6 +531,12 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 				if($f=='*' || array_key_exists($f, $schema))
 					$ncols[]=$f;
 			}
+		}
+		$connFields = array_keys($conns);
+		foreach ($connFields as $cf) {
+			if($opts['fields']!='*' && !preg_match('/\b'.$connect[$cf]['target_column'].'\b/i',!$opts['fields'])){
+				$ncols []= $connect[$cf]['column'];
+			}	
 		}
 		$colStr = '`'.join('`,`',$ncols).'`';
 	}else{
@@ -574,7 +581,6 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 			}
 		}
 		$optStr =  empty($optStr) ? '': ' WHERE '.join(' AND ', $optStr);
-		
 		if(!in_array('order',$omit) && !empty($opts['order']))
 			$optStr .= ' ORDER BY '.$opts['order'];
 		if(!in_array('limit',$omit) && !empty($opts['limit']))
