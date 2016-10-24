@@ -16,7 +16,7 @@ get_include_path(). PATH_SEPARATOR
 . APP_DIR.__SLASH__.'modules'.__SLASH__ 
 );
 
-$modulefiles = ['Lang','Session','Caches','DB','Core','Render','Filter'];
+$modulefiles = ['Lang','Session','Caches','DB','Core','Render','Filter','QL'];
 foreach($modulefiles as $f){
 	require_once LIBER_DIR.__SLASH__."modules".__SLASH__.$f.".inc";
 }

@@ -165,7 +165,7 @@ function cli_migrate(){
 ?>
 
 EOF2;
-	$files = ['Core','Lang','Session','Caches','DB','Render','Filter'];
+	$files = ['Core','Lang','Session','Caches','DB','Render','Filter','QL'];
 	foreach($files as $f){
 		//echo $f."\n";
 		$str = file_get_contents($pwd."/modules/".$f.".inc");
