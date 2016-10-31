@@ -147,7 +147,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	}
 	$sql = '';
 	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
-		$data[$updName] = ms();
+		$data[$updName] = time();
 	}
 	$qdatas = [];
 	if ($isUpdate){
@@ -172,9 +172,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 			}
 			$sql ='UPDATE `'.$table.'` SET '.$colStmt.' '.$optStr; 
 		}
-	}else{								
+	}else{
 		if(array_key_exists($regName,$schema) && !isset($data[$regName]))
-			$data[$regName] = ms();
+			$data[$regName] = time();
 		foreach ($data as $col => $val){
 			if(str_ends($col,'+')) {
 				$opr = substr($col,-1);
