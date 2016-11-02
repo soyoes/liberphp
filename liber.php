@@ -2118,7 +2118,7 @@ function ql_filter($w, &$data){
 		$i=0;
 		foreach ($m['v'] as $k) {
 			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';
-			$sur=preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
+			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
 			if(!in_array($k, $ks))
 				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*\/:'.$k.'\/'.$sur.'/i', '', $w);
 			$i++;

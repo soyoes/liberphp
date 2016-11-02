@@ -116,7 +116,7 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
-	// error_log("w1=".$w);
+	//error_log("w1=".$w);
 	
 	//solve single var inside ()/[] between/in
 	preg_match_all('/(?<pre>[&|]*)(?<name>[a-z0-9_\.]+)(?<n>!*)[\(\[]:(?<a>[a-z0-9_]+)[\]\)](?<sur>[&|]*)/i', $w, $m);
@@ -170,7 +170,8 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
-	// error_log("w2=".$w);exit;
+	// error_log("w3=".$w);
+
 
 	//solve like
 	preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+!*\/:(?<v>[^\/]+)\/(?<sur>[&|]*)/i', $w, $m);
@@ -178,13 +179,13 @@ function ql_filter($w, &$data){
 		$i=0;
 		foreach ($m['v'] as $k) {
 			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';
-			$sur=preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
+			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
 			if(!in_array($k, $ks))
 				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*\/:'.$k.'\/'.$sur.'/i', '', $w);
 			$i++;
 		}
 	}
-	//error_log("w3=".$w);
+	// error_log("w4=".$w);
 
 	//remove empty braces and useless &|
 	$w = preg_replace(['/\([&|]/','/[&|]\)/','/^[&|]/','/[&|]$/'], ['(',')','',''], $w);
@@ -198,12 +199,13 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
+	//error_log("w5=".$w);
 
 	//remove useless data from data
 	$aks = array_filter($ks, function($k) use($allvs,&$data){if(in_array($k, $allvs))return true;else unset($data[$k]);return false;});
 
 
-	// error_log("w4=".$w);
+	// error_log("w6=".$w);
 	// exit;
 	return $w;
 }
