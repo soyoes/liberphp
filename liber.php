@@ -1260,7 +1260,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	}
 	$sql = '';
 	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
-		$data[$updName] = ms();
+		$data[$updName] = time();
 	}
 	$qdatas = [];
 	if ($isUpdate){
@@ -1284,9 +1284,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 			}
 			$sql ='UPDATE `'.$table.'` SET '.$colStmt.' '.$optStr; 
 		}
-	}else{								
+	}else{
 		if(array_key_exists($regName,$schema) && !isset($data[$regName]))
-			$data[$regName] = ms();
+			$data[$regName] = time();
 		foreach ($data as $col => $val){
 			if(str_ends($col,'+')) {
 				$opr = substr($col,-1);
@@ -2049,7 +2049,7 @@ function ql_query($opt,$data=[]){
 		$data = $nd;
 	}else{
 		$w = ql_parse_w(ql_filter(preg_replace(['/#.*/','/[\t\s]+/'],'',$w),$data));
-	}
+			}
 	$sql = "SELECT $s FROM $f ".
 		(empty($w)?'':"WHERE $w ").
 		(empty($g)?'':"GROUP BY $g ").
@@ -2080,13 +2080,33 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
+		preg_match_all('/(?<pre>[&|]*)(?<name>[a-z0-9_\.]+)(?<n>!*)[\(\[]:(?<a>[a-z0-9_]+)[\]\)](?<sur>[&|]*)/i', $w, $m);
+	if(!empty($m['a'])){
+		$i = 0;
+		foreach ($m['a'] as $a) {
+												if(!empty($data[$a])){
+								$vs = explode(',',$data[$a]);
+				$j = 0;
+				$rep = [];				foreach ($vs as $v){
+					$data[$a.'_'.$j]=$v;
+					$rep[]=':'.$a.'_'.$j;
+					$allvs[]=$a.'_'.$j++;
+				}
+				$rep = join(',',$rep);
+								unset($data[$a]);
+				$ks = array_map(function($e){return explode('@', $e)[0];},array_keys($data));
+				unset($allvs[array_search($a, $allvs)]);
+								$w = preg_replace('/('.$m['name'][$i].$m['n'][$i].')([\(\[]):(?<a>[a-z0-9_]+)([\]\)])/i','$1$2'.$rep.'$4',$w);
+			}else{				$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';				$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*[\(\[]'.$a.'[\]\)]'.$sur.'/i', '', $w);
+			}
+			$i++;
+		}
+	}
 		preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+!*[\(\[](?<v>[:a-z0-9_\.,]+)[\]\)](?<sur>[&|]*)/i', $w, $m);
 	if(!empty($m['v'])){
 		$i=0;
 		foreach ($m['v'] as $v) {
-			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';
-			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
-			$vs = array_filter(explode(',', $v),function($e){return $e[0]==':';});
+			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';			$vs = array_filter(explode(',', $v),function($e){return $e[0]==':';});
 			if(empty($vs))continue;
 			$vs = array_map(function($e){return substr($e, 1);}, $vs);
 			if(count(array_intersect($vs, $ks)) != count($vs))				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*[\(\[]'.$v.'[\]\)]'.$sur.'/i', '', $w);
@@ -2155,7 +2175,7 @@ function ql_build_w($o, &$data){
 	return '';
 }
 function ql_parse_w($q){
-	$sql = preg_replace(['/&/','/\|/',			'/\!=null/', 			'/=null/', 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', 			'/(\!*)\[([^\]]+)\]/', 			'/(\!*)\/(:[^\/\^\$]+)\//', 			'/(\!*)\/([^\/]+)\//', 			'/%\^/', 			'/\$%/', 			'/\!(BETWEEN|IN|LIKE)\s/', 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',			],[' AND ',' OR ',			' IS NOT NULL ', 			' IS NULL ', 			' ($1 $2BETWEEN $3 AND $4) ', 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', 			' $1IN ($2) ', 			' $1LIKE $2 ', 			' $1LIKE \'%$2%\' ', 			'', 							'', 							'NOT $1 ',			'$1.`$2`',			],$q);
+	$sql = preg_replace(['/&/','/\|/',			'/\!=null/', 			'/=null/', 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(:([0-9a-z_]+)\)/i', 			'/(\!*)\[([^\]]+)\]/', 			'/(\!*)\/(:[^\/\^\$]+)\//', 			'/(\!*)\/([^\/]+)\//', 			'/%\^/', 			'/\$%/', 			'/\!(BETWEEN|IN|LIKE)\s/', 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',			],[' AND ',' OR ',			' IS NOT NULL ', 			' IS NULL ', 			' ($1 $2BETWEEN $3 AND $4) ', 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', 			' ($1 $2BETWEEN :$3) ', 			' $1IN ($2) ', 			' $1LIKE $2 ', 			' $1LIKE \'%$2%\' ', 			'', 							'', 							'NOT $1 ',			'$1.`$2`',			],$q);
 		$sql = preg_replace_callback('/(?<k>\b[a-z0-9_`]+)(?<o>\s*[><=]\s*)(?<v>[^\s]+)(?=\s|$)/',function($m){
 						if(preg_match('/^[\d\.]+$/',$m['v']) || str_starts($m['v'],':') || preg_match('/^[a-z\d`_]+\.[a-z\d`_]+$/i', $m['v'])){
 			return $m['k'].$m['o'].$m['v']." ";
@@ -2166,7 +2186,7 @@ function ql_parse_w($q){
 		$sql = preg_replace_callback('/(?<=IN\s)\((?<v>[^:][^\)]+)/',function($m){
         return "('".implode("','", explode(',', $m['v']))."'";
     },$sql);
-    return $sql;
+	return $sql;
 }
 function ql_parse_f($t){
 		$t = preg_replace_callback('/(?<=\{)([^\}]+)(?=\})/', function($m){

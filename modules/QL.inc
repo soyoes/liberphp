@@ -74,6 +74,7 @@ function ql_query($opt,$data=[]){
 		$data = $nd;
 	}else{
 		$w = ql_parse_w(ql_filter(preg_replace(['/#.*/','/[\t\s]+/'],'',$w),$data));
+		//error_log("data=".json_encode($data));exit;
 	}
 	$sql = "SELECT $s FROM $f ".
 		(empty($w)?'':"WHERE $w ").
@@ -116,14 +117,51 @@ function ql_filter($w, &$data){
 		}
 	}
 	// error_log("w1=".$w);
+	
+	//solve single var inside ()/[] between/in
+	preg_match_all('/(?<pre>[&|]*)(?<name>[a-z0-9_\.]+)(?<n>!*)[\(\[]:(?<a>[a-z0-9_]+)[\]\)](?<sur>[&|]*)/i', $w, $m);
+	if(!empty($m['a'])){
+		$i = 0;
+		foreach ($m['a'] as $a) {
+			// error_log("a=$a");
+			// error_log("name=".$m['name'][$i]);
+			// error_log("n=".$m['n'][$i]);
+			if(!empty($data[$a])){
+				//split arg to sequenced idx
+				$vs = explode(',',$data[$a]);
+				$j = 0;
+				$rep = [];//replacement str
+				foreach ($vs as $v){
+					$data[$a.'_'.$j]=$v;
+					$rep[]=':'.$a.'_'.$j;
+					$allvs[]=$a.'_'.$j++;
+				}
+				$rep = join(',',$rep);
+				// error_log("rep=$rep");
+				unset($data[$a]);
+				$ks = array_map(function($e){return explode('@', $e)[0];},array_keys($data));
+				unset($allvs[array_search($a, $allvs)]);
+
+				//replace regexp from single var to multi vars
+				$w = preg_replace('/('.$m['name'][$i].$m['n'][$i].')([\(\[]):(?<a>[a-z0-9_]+)([\]\)])/i','$1$2'.$rep.'$4',$w);
+			}else{//remove this part
+				$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';// &| surround name
+				$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';// &| surround name
+				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*[\(\[]'.$a.'[\]\)]'.$sur.'/i', '', $w);
+			}
+			$i++;
+		}
+	}
+	// error_log("w2=".$w);
+
 
 	//solve (not)between,(not)in
 	preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+!*[\(\[](?<v>[:a-z0-9_\.,]+)[\]\)](?<sur>[&|]*)/i', $w, $m);
 	if(!empty($m['v'])){
 		$i=0;
 		foreach ($m['v'] as $v) {
-			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';
-			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
+			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';// &| surround name
+			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';// &| surround name
 			$vs = array_filter(explode(',', $v),function($e){return $e[0]==':';});
 			if(empty($vs))continue;
 			$vs = array_map(function($e){return substr($e, 1);}, $vs);
@@ -132,7 +170,7 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
-	//error_log("w2=".$w);
+	// error_log("w2=".$w);exit;
 
 	//solve like
 	preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+!*\/:(?<v>[^\/]+)\/(?<sur>[&|]*)/i', $w, $m);
@@ -163,6 +201,7 @@ function ql_filter($w, &$data){
 
 	//remove useless data from data
 	$aks = array_filter($ks, function($k) use($allvs,&$data){if(in_array($k, $allvs))return true;else unset($data[$k]);return false;});
+
 
 	// error_log("w4=".$w);
 	// exit;
@@ -241,8 +280,9 @@ function ql_parse_w($q){
 	$sql = preg_replace(['/&/','/\|/',//and or
 			'/\!=null/', //is not null
 			'/=null/', //is null
-			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', //between with statement variable
+			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', //between with statement 2 vars
 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', //between
+			'/([\da-z_\.]+)(\!*)\(:([0-9a-z_]+)\)/i', //between with statement 1 var
 			'/(\!*)\[([^\]]+)\]/', //in
 			'/(\!*)\/(:[^\/\^\$]+)\//', //like with variable
 			'/(\!*)\/([^\/]+)\//', //like
@@ -255,6 +295,7 @@ function ql_parse_w($q){
 			' IS NULL ', //is null
 			' ($1 $2BETWEEN $3 AND $4) ', //between with statement variable
 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', //between
+			' ($1 $2BETWEEN :$3) ', //between with statement 1 var
 			' $1IN ($2) ', //in
 			' $1LIKE $2 ', //like
 			' $1LIKE \'%$2%\' ', //like
@@ -280,7 +321,7 @@ function ql_parse_w($q){
         return "('".implode("','", explode(',', $m['v']))."'";
     },$sql);
 
-    return $sql;
+	return $sql;
 }
 
 /**
