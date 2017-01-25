@@ -50,7 +50,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
 	error_log($sql);
-	error_log(json_encode($datas));	
+	//error_log(json_encode($datas));	
 	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
@@ -885,12 +885,12 @@ function db_init_filters(){
 		},
 		'()' 	=> function($k,$v,&$o){
 			return db_make_filters($k, 'and', $v, 'and', $o, function($k,$v, &$o, $idx){
-				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k.'` BETWEEN '.min($v[0],$v[1]).' AND '.max($v[0],$v[1]).')';
+				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k."` BETWEEN '".min($v[0],$v[1])."' AND '".max($v[0],$v[1])."')";
 			});
 		},
 		'!()' 	=> function($k,$v,&$o){
 			return db_make_filters($k, 'and', $v, 'and', $o, function($k,$v, &$o, $idx){
-				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k.'` NOT BETWEEN '.min($v[0],$v[1]).' AND '.max($v[0],$v[1]).')';
+				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k."` NOT BETWEEN '".min($v[0],$v[1])."' AND '".max($v[0],$v[1])."')";
 			});
 		},
 		'?'  	=> function($k,$v,&$o){
