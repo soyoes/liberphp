@@ -46,27 +46,27 @@ class Render {
 	function render($file,$data=[],$layout=null,$renderOnly=false){
 		$req = REQ::getInstance();
 		$template = isset($layout)? $layout : $this->layout;
-		$ns = $req->getNamespace();
+		$ns = $req?$req->getNamespace():"";
 		$ns = empty($ns)?"":$ns."-";
 		$key = 'template-'. REQ::getTemplateType()."-".$ns.$template;
 		$wrapper_code = cache_get($key, function($f){
 			$req = REQ::getInstance();
-			$ns = $req->getNamespace();
+			$ns = $req?$req->getNamespace():"";
 			$ns = empty($ns)?"":$ns."-";
 			$key_prefix = 'template-'.REQ::getTemplateType()."-".$ns;
 			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
 		},false);
-		
-		//set variables
-		if(!empty($data))
+				if(!empty($data))
 		foreach ($data as $k=>$v)
 			$this->data[$k] = $v;
 		$this->data['__render'] = $this;
 		$req = REQ::getInstance();
-		if(!$this->data['__controller']) $this->data['__controller'] = $req->getController();
-		if(!$this->data['__namespace']) $this->data['__namespace'] = $req->getNamespace();
-		if(!$this->data['__action']) $this->data['__action'] = $req->getAction();
-		if(!$this->data['__params']) $this->data['__params'] = $req->params;
+		if($req){
+			if(!$this->data['__controller']) $this->data['__controller'] = $req->getController();
+			if(!$this->data['__namespace']) $this->data['__namespace'] = $req->getNamespace();
+			if(!$this->data['__action']) $this->data['__action'] = $req->getAction();
+			if(!$this->data['__params']) $this->data['__params'] = $req->params;
+		}
 
 		$_REQUEST[self::$var_prefix."TMP_DATA"] = $this->data;
 		extract($this->data, EXTR_PREFIX_ALL, self::$var_prefix);

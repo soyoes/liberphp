@@ -74,10 +74,10 @@ class S3 {
         preg_match("/^data:.+?\/(.+?);base64,.*/", $file, $matches);
         if (count($matches) == 2) {
             // file is a base 64 string
-            $name = $name ? $name : strtolower(str_replace("-", "", Utils::uuid()) . "." . $matches[1]);
+            $name = $name ? $name : strtolower(uniqid() . "." . $matches[1]);
         } else {
             // file is a path string
-            $name = $name ? $name : Utils::uuid();
+            $name = $name ? $name : uniqid();
         }
 
         $handler = fopen($file, "r");

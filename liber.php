@@ -1166,8 +1166,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
 	error_log($sql);
-	error_log(json_encode($datas));	
-	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
+		if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
@@ -1774,12 +1773,12 @@ function db_init_filters(){
 		},
 		'()' 	=> function($k,$v,&$o){
 			return db_make_filters($k, 'and', $v, 'and', $o, function($k,$v, &$o, $idx){
-				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k.'` BETWEEN '.min($v[0],$v[1]).' AND '.max($v[0],$v[1]).')';
+				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k."` BETWEEN '".min($v[0],$v[1])."' AND '".max($v[0],$v[1])."')";
 			});
 		},
 		'!()' 	=> function($k,$v,&$o){
 			return db_make_filters($k, 'and', $v, 'and', $o, function($k,$v, &$o, $idx){
-				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k.'` NOT BETWEEN '.min($v[0],$v[1]).' AND '.max($v[0],$v[1]).')';
+				if(is_string($v))$v=explode(',',$v);if(count($v)!=2)return false; return '(`'.$k."` NOT BETWEEN '".min($v[0],$v[1])."' AND '".max($v[0],$v[1])."')";
 			});
 		},
 		'?'  	=> function($k,$v,&$o){
@@ -1835,12 +1834,12 @@ class Render {
 	function render($file,$data=[],$layout=null,$renderOnly=false){
 		$req = REQ::getInstance();
 		$template = isset($layout)? $layout : $this->layout;
-		$ns = $req->getNamespace();
+		$ns = $req?$req->getNamespace():"";
 		$ns = empty($ns)?"":$ns."-";
 		$key = 'template-'. REQ::getTemplateType()."-".$ns.$template;
 		$wrapper_code = cache_get($key, function($f){
 			$req = REQ::getInstance();
-			$ns = $req->getNamespace();
+			$ns = $req?$req->getNamespace():"";
 			$ns = empty($ns)?"":$ns."-";
 			$key_prefix = 'template-'.REQ::getTemplateType()."-".$ns;
 			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
@@ -1850,10 +1849,12 @@ class Render {
 			$this->data[$k] = $v;
 		$this->data['__render'] = $this;
 		$req = REQ::getInstance();
-		if(!$this->data['__controller']) $this->data['__controller'] = $req->getController();
-		if(!$this->data['__namespace']) $this->data['__namespace'] = $req->getNamespace();
-		if(!$this->data['__action']) $this->data['__action'] = $req->getAction();
-		if(!$this->data['__params']) $this->data['__params'] = $req->params;
+		if($req){
+			if(!$this->data['__controller']) $this->data['__controller'] = $req->getController();
+			if(!$this->data['__namespace']) $this->data['__namespace'] = $req->getNamespace();
+			if(!$this->data['__action']) $this->data['__action'] = $req->getAction();
+			if(!$this->data['__params']) $this->data['__params'] = $req->params;
+		}
 		$_REQUEST[self::$var_prefix."TMP_DATA"] = $this->data;
 		extract($this->data, EXTR_PREFIX_ALL, self::$var_prefix);
 		$r = $this->render_file($file,$wrapper_code);
