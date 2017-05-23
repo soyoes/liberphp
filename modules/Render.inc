@@ -232,37 +232,28 @@ class Render {
 	 		// 0 means nothing/blank/...
 	 * */
 	static function paginate($page,$total,$opts=['perPage'=>20]){
-		$pp = ($opts['perPage']>0)? $opts['perPage']: 20;
-		$pi = $opts['items']?$opts['items']:9; 
-		$ptt = ceil($total/$pp); $half=floor($pi/2);
-		$pages = []; $begin = max(1,$page-$half); $end = min($ptt, $page+$half);
-		$cursor = 0;
-		for($i=$begin;$i<=$end;$i++){
-			$pages[]=$i;
-			if($i<$page) $cursor++;
-		}
-		if($begin>2) {
-			$b = $begin;
-			while(count($pages)<$pi-2 && $b>2){
-				array_unshift($pages,--$b);$cursor++;
+		$pp = ($opts['perPage']>0)? $opts['perPage']: 20;//perpage
+		$pi = $opts['items']?$opts['items']:9;//page button amount
+		$ptotal = ceil($total/$pp);
+		$size 	= min($ptotal, max(7,$pi));
+		$pages 	= [$page];
+		if($ptotal>$size){
+			$seg = $size%2==0?$size+1:$size;
+			for ($i=1;count($pages)<$seg;$i++){
+				if($page-$i>=1) array_unshift($pages,$page-$i);
+				if($page+$i<=$ptotal)$pages[]=$page+$i;
 			}
-			if(count($pages)>$pi-2)$pages =[1,0]+$pages;
-			else{$pages = array_merge([1,0],$pages); $cursor+=2;}
+			if(end($pages)<=$ptotal-1)
+				$pages=array_merge(array_slice($pages,0,count($pages)-2),[0,$ptotal]);
+			if($pages[0]>=2)
+				$pages=array_merge([1,0],array_slice($pages,2,count($pages)));
+		}else{
+			$pages = [];
+			for($i=1;$i<=$ptotal;$i++)
+				if(!in_array($i,$pages))
+					$pages[]=$i;
 		}
-		if($begin==2) {array_unshift($pages, 1); $cursor++;}
-		if($ptt-$end>2) {
-			while(count($pages)>$pi-2){
-				$p = array_pop($pages);
-				if($p<$page)$cursor--;
-			}
-			if(count($pages)<$pi-2){
-				$e = $end;
-				while(count($pages)<$pi-2 && $e<$ptt-2){array_push($pages, ++$e);}
-			}
-			$pages = array_merge($pages,[0,$ptt]);
-		}
-		if($ptt-$end==2) $pages []= $ptt;
-		return ['pages'=>$pages,'cursor'=>$cursor];
+		return ['pages'=>$pages,'cursor'=>array_search($page,$pages)];
 	}
 }
 

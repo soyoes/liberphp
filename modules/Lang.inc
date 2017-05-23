@@ -40,7 +40,44 @@ function str2hex($string){
 	}
 	return $hex;
 }
-
+function str2half($s){
+	return mb_convert_kana($s, "rnaskhc", 'UTF-8');
+}
+/**
+	* kanji num => 0-9 form number
+	*  s = "五万九千八百零一"
+	s = "五百四十一万九千八百三十一"
+	s = "伍陌萬弐陌卌壱"
+*/
+function wstr2num($s){
+	$v = 0;$n = 0;
+	$nmap = ['一'=>1,'壱'=>1,'壹'=>1,'弌'=>2,'二'=>2,'弐'=>2,'貳'=>2,'貮'=>2,'贰'=>2,'三'=>3,'参'=>3,'參'=>3,'弎'=>3,'叁'=>3,'叄'=>3,'四'=>4,'肆'=>4,'五'=>5,'伍'=>5,'六'=>6,'陸'=>6,'陸'=>6,'七'=>7,'漆'=>7,'柒'=>7,'八'=>8,'捌'=>8,'九'=>9,'玖'=>9];
+	$bmap = ['十'=>10,'拾'=>10,'廿'=>20,'卄'=>20,'卅'=>30,'丗'=>30,'卌'=>40,'百'=>100,'陌'=>100,'千'=>1000,'阡'=>1000,'仟'=>1000];
+	$b4map = ['万'=>10000,'萬'=>10000,'億'=>100000000,'兆'=>1000000000000];
+	$s = str2half($s);
+	$ns = "";
+	$sl = mb_strlen($s);
+	for($x=0;$x<$sl;$x++){
+		$c = mb_substr($s, $x, 1, 'UTF-8');
+		if(preg_match('/[0-9]/',$c)){
+			$ns.=$c;
+			$n = intval($ns);
+		}else if(isset($nmap[$c])){
+			$n=$nmap[$c];
+		}else if(isset($bmap[$c])){
+			$v+=$n*$bmap[$c];
+			$n=0;
+			$ns="";
+		}else if(isset($b4map[$c])){
+			if($n>0)$v+=$n;
+			$v*=$b4map[$c];
+			$n=0;
+			$ns="";
+		}
+	}
+	if($n>0)$v+=$n;
+	return $v;
+}
 function is_email($email){
 	return false !== filter_var( $email, FILTER_VALIDATE_EMAIL );
 }
@@ -59,6 +96,42 @@ function is_hash($arr){
 
 function is_json($str){
 	return is_object(json_decode($str));
+}
+function is_kanji($s){
+	return preg_match('/^\p{Han}+$/',$s);
+}
+function is_katakana($s){
+	return preg_match('/^\p{Katakana}+$/',$s);
+}
+function is_hirakana($s){
+	return preg_match('/^\p{Hiragana}+$/',$s);
+}
+function is_number($s){
+	return preg_match('/^[\d\.]+$/',$s);
+}
+function is_phone_jp($s){
+	return preg_match('/^\d{2,4}[\-ー−]*\d{3,4}[\-ー−]*\d{3,4}$/',$s);
+}
+function is_zipcode_jp($s){
+	return preg_match('/^\d{3}[\-ー−]*\d{4}$/',$s);
+}
+function is_len($s,$min,$max=false){
+	$min = intval($min);
+	$max = $max===false?false:intval($max);
+	$l = strlen($s);
+ 	return ($max===false) ?$l>=$min : $l>=$min && $l<=$max;
+}
+function is_ymdhi($s){
+	return preg_match('/[12]\d{3}[\-ー年\.−]*\d{1,2}[\-ー月\.−]*\d{1,2}\s+(午前|午後|am|pm)*\d{1,2}[時:]\d{1,2}/u',$s);
+}
+function is_ymd($s){
+	return preg_match('/[12]\d{3}[\-ー年\.−]*\d{1,2}[\-ー月\.−]*\d{1,2}/u',$s);
+}
+function is_ym($s){
+	return preg_match('/[12]\d{3}[\-ー年\.−]*\d{1,2}/u',$s);
+}
+function is_hi($s){
+	return preg_match('/^(午前|午後|am|pm)*\d{1,2}[時:]\d{1,2}/u',$s);
 }
 
 function hash_incr($data, $key, $amount){
@@ -144,10 +217,10 @@ function hash_get(&$data, $keyPath, $autoCreate=true, $defaultValue=null){
  * 		a_2Hash($arr, 'a'); result : {1=>{a=>1, b=4},2=>{a=2, b=3}}
  *
  */
-function arr2hash($arr, $keyName, $valueName=null){
+function arr2hash($arr, $keyName, $valueName=null, $prefix=null){
 	$hash = [];
 	foreach ($arr as $e){
-		$hash[''.$e[$keyName]] = $valueName==null ? $e : $e[$valueName];
+		$hash[($prefix?$prefix:'').$e[$keyName]] = $valueName==null ? $e : $e[$valueName];
 	}
 	return $hash;
 }
@@ -469,4 +542,66 @@ function fs_src_tree($phpfile){
 		}
 	}
 	return ['annotations' => empty($comment)?[]:fs_annotations($comment),'functions' => $funcs,'classes' => $classes];
+}
+
+function elog($o, $label=''){
+	// if(Conf::$mode!=='Developing')return;
+	$trace=debug_backtrace();
+	$m = strlen($trace[1]['class'])? $trace[1]['class']."::":"";
+	$m .= $trace[1]['function'];
+	$ws = is_array($o)?"\n":(strlen($o)>=10?"\n":"");
+	error_log($m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n");
+}
+
+
+/**
+ * compare 2 value
+ * @param  [type] $cmp [(eq|ne|ge|gt|le|lt)]
+ * @param  [type] $a   [v1]
+ * @param  [type] $b   [v2]
+ * @param  [type] $k   [if a&b are obj only]
+ * @return [bool]      [description]
+ */
+function comp($a,$b,$cmp='eq',$k=false){
+	$v1 = is_hash($a)&&$k?$a[$k]:$a;
+	$v2 = is_hash($b)&&$k?$b[$k]:$b;
+	switch($cmp){
+		case 'eq':return $v1==$v2;
+		case 'ne':return $v1!=$v2;
+		case 'le':return $v1<=$v2;
+		case 'lt':return $v1<$v2;
+		case 'ge':return $v1>=$v2;
+		case 'gt':return $v1>$v2;
+	}
+}
+
+/**
+ * a simplified version of array_filter
+ * @param  [Array]  $arr 
+ * @param  [mixed]  $v   [$e['id']==$v, e.g.]
+ * @param  [string] $k   [attr name of each element,false means this element]
+ * @param  [string] $comp  [comparitor of (eq|ne|ge|gt|le|lt) ]
+ * @param  boolean &$i  [idx of first found element]
+ * @return [Array]       [description]
+ */
+function arr_filter($arr, $v, $k=false, $comp='eq', &$i=false){
+	$res = [];$x=0;
+	if($arr){
+		foreach ($arr as $e) {
+			if(($k===false && comp($e,$v,$comp))||($k && comp($e[$k],$v,$comp))){
+				$res[]=$e;
+				if($i===false)$i=$x;
+			}
+			$x++;
+		}
+	}
+	return $res;
+}
+
+function arr_intersect($a1,$a2){
+	$r = [];
+	foreach ($a1 as $e) {
+		if(in_array($e, $a2))$r[]=$e;
+	}
+	return $r;
 }

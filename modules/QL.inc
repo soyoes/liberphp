@@ -101,9 +101,7 @@ function ql_query($opt,$data=[]){
 function ql_filter($w, &$data){
 	preg_match_all('/:(?<v>[a-z0-9_]+)/i',$w,$mvs);
 	$allvs = $mvs['v'];
-
 	$ks = array_map(function($e){return explode('@', $e)[0];},array_keys($data));
-
 	//solve =|!=|<|<=|>|>= expressions
 	preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+[=<>!]+:(?<v>[a-z]+[a-z0-9_]+)(?<sur>[&|]*)/i', $w, $m);
 	if(!empty($m['v'])){
@@ -185,6 +183,19 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
+
+	//solve regexp
+	preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+!*\{:(?<v>[^\}]+)\}(?<sur>[&|]*)/i', $w, $m);
+	if(!empty($m['v'])){
+		$i=0;
+		foreach ($m['v'] as $k) {
+			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';
+			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
+			if(!in_array($k, $ks))
+				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*\{:'.$k.'\}'.$sur.'/i', '', $w);
+			$i++;
+		}
+	}
 	// error_log("w4=".$w);
 
 	//remove empty braces and useless &|
@@ -240,6 +251,8 @@ function ql_build_w($o, &$data){
 		'nb' 	=> '!($)',
 		'l' 	=> '/$/',
 		'nl' 	=> '!/$/',
+		'm' 	=> '{$}',
+		'nm' 	=> '!{$}',
 	];
 	$ws = [];
 	if(is_hash($o)){
@@ -290,6 +303,8 @@ function ql_parse_w($q){
 			'/(\!*)\/([^\/]+)\//', //like
 			'/%\^/', //like ^
 			'/\$%/', //like $
+			'/(\!*)\{(:[^\}\^\$]+)\}/', //regexp with variable
+			'/(\!*)\{([^\}]+)\}/', //regexp
 			'/\!(BETWEEN|IN|LIKE)\s/', //not
 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',//wrapper on tablename.colname
 			],[' AND ',' OR ',//and or
@@ -303,6 +318,8 @@ function ql_parse_w($q){
 			' $1LIKE \'%$2%\' ', //like
 			'', 				//like ^
 			'', 				//like $
+			'$1 REGEXP $2',//regexp var
+			'$1 REGEXP \'$2\'',//regexp
 			'NOT $1 ',//not
 			'$1.`$2`',//wrapper on tablename.colname
 			],$q);

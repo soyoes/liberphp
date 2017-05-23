@@ -113,7 +113,7 @@ function render_html($templateName=null, $datas=array()){
 function render_json($data){
 	$body = json_encode($data);
 	header('Content-type: application/json; charset=UTF-8');
-	REQ::getInstance()->setResponseBody(json_encode($data));
+	REQ::getInstance()->setResponseBody($body);
 	REQ::write($body,'json');
 }
 
@@ -158,6 +158,11 @@ function keygen($len,$chars=false){
 	return $key;
 }
 
+function rand1($arr){//get random 1 element
+	if(empty($arr))return null;
+	return count($arr)>1?$arr[rand(0,count($arr)-1)]:$arr[0];
+}
+
 /**
  * send error code + message and quit
  * @param $code: HTTP error code. http://en.wikipedia.org/wiki/List_of_HTTP_status_codes
@@ -168,6 +173,7 @@ function error($code, $contentType, $reason=''){
 	if(empty($reason)&&!empty($contentType)&&!in_array($contentType, ['html','json','text'])){
 		$reason=$contentType;$contentType='json';
 	}
+	if(Conf::$mode=='Developing') elog($code);
 	$msg = Consts::$error_codes[''.$code];
 	header('HTTP/1.1 '.$code.' '.$msg, FALSE);
 	$req = REQ::getInstance();
@@ -295,6 +301,13 @@ function async($msg,$func){
 	call_user_func_array ($func, $args);
 }
 
+function user_lang(){
+	return isset($_REQUEST['@lang'])?$_REQUEST['@lang']:
+					(!empty($_SESSION['lang']) ? $_SESSION['lang']:
+						(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
+							substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):Consts::$lang));
+}
+
 /**
  * language support . get text by key from /conf/text.csv
  * @param $key : id, the first column of text.csv
@@ -311,11 +324,7 @@ function async($msg,$func){
  */
 function T($key){
 	$filename = null;
-	$lang = isset($_REQUEST['@lang'])?$_REQUEST['@lang']:
-					(!empty($_SESSION['lang']) ? $_SESSION['lang']:
-						(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
-							substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):
-							Consts::$lang));
+	$lang = user_lang();
 	$text_func = function($fn){
 		$file = join(__SLASH__,[APP_DIR,'conf','text.csv']);
 		if (file_exists($file)){
@@ -404,8 +413,10 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	$uri = $parts['path'];
 
 	$fmts = ['json','bson','text','html','csv'];
+	
 	if(isset($parts['query']))
-		parse_str(str_replace('&amp;', '&', $parts['query']),$params);
+		parse_str(str_replace(['&amp;','&quot;'], ['&','"'], $parts['query']),$params);
+	
 	//FIXME : localhost
 	if(($host=='localhost'||$host=="127.0.0.1") && (str_has($uri,'liber.php')||str_has($uri,'index.php')) && isset($params['__URL__']) ){
 		$uri = $params['__URL__'];
@@ -444,7 +455,10 @@ function parse_rest_uri($uri, $method, &$params){
 	foreach($params as $k=>$v){
 		if($k=='@format' && in_array($v, $fmts)) 
 			$res['format'] = $v;
-		$params[$k] = htmlEntities($v); //XSS
+		if(preg_match('/^[\{\[].*[\}\]]$/',$v))//json
+			$params[$k] = $v;
+		else
+			$params[$k] = htmlEntities($v); //XSS	
 	}
 	unset($params['@format']);
 	if($params['@test_mode']) $_REQUEST['@test_mode']=1;
@@ -595,8 +609,10 @@ class REQ {
 		$req->data = parse_uri($uri, $method, $params, $ua);
 		$req->params = $req->data['params'];
 
-		if(Consts::$session_enable && !isset($_SESSION))
+		if(Consts::$session_enable && !isset($_SESSION)){
 			Session::start();
+			$_SESSION['lang'] = user_lang();
+		}
 
 		if(count(self::$instances)>1){
 			$req->is_thread = true;
@@ -729,6 +745,7 @@ class REQ {
             error_log('URI: ' . $this->getURI());
             error_log('METHOD: ' . $_SERVER['REQUEST_METHOD']);
             error_log('PARAMETERS: ' . json_encode($this->params));
+			error_log("HTTP_REFERER: ".$_SERVER["HTTP_REFERER"]);
         }
         try{
 			$data = $this->data;
@@ -919,7 +936,9 @@ function permission(){
 	$req = REQ::getInstance();
 	$uri = $req->getURI();
 	$schemaDef = $req->getData('schema_def');
-	$group = AuthDelegate::group();
+	$group = AuthDelegate::group();//str or array of 0,1
+	// if(is_string($group)) //TODO : soyoes 201704
+	// 	$group = str_split($group);
 	$permission = '';
 	if(!empty($schemaDef)){//RESTFUL
 		$restful =  strtolower($schemaDef['general']['restful']?$schemaDef['general']['restful']:'');
@@ -949,14 +968,11 @@ function permission(){
 		//$permission = isset($tree[$act])?$tree[$act]:$tree['@file'];
 		$permission = isset($tree[$act])?$tree[$act]:'F';
 	}
-	$bits = isset($permission)&&isset($permission[$group])?$permission[$group]:($group==0?'8':'F');//bits is hex string (len=1)
 
+	$bits = isset($permission)&&isset($permission[$group])?$permission[$group]:($group==0?'8':'F');//bits is hex string (len=1)
 	if($bits=='0') return $group==0? 401 : 403;
-	
-	//$bits : int -> 4 bit binary string
-	$bits = base_convert($bits, 16, 2); 
-	//$bits = str_pad(base_convert($bits, 16, 2),4,'0',STR_PAD_LEFT);
-	$bitIdx = array_search($req->getMethod(), ['get','post','put','delete']);
+	$bits = str_pad(base_convert($bits, 16, 2),4,'0',STR_PAD_LEFT);
+	$bitIdx = array_search(strtolower($req->getMethod()), ['get','post','put','delete']);
 	if($bits[$bitIdx]!='1') return $group==0? 401 : 403;
 	return 200;
 }

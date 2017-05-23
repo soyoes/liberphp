@@ -98,7 +98,7 @@ function render_html($templateName=null, $datas=array()){
 function render_json($data){
 	$body = json_encode($data);
 	header('Content-type: application/json; charset=UTF-8');
-	REQ::getInstance()->setResponseBody(json_encode($data));
+	REQ::getInstance()->setResponseBody($body);
 	REQ::write($body,'json');
 }
 function render_text($text){
@@ -129,10 +129,14 @@ function keygen($len,$chars=false){
 	}
 	return $key;
 }
+function rand1($arr){	if(empty($arr))return null;
+	return count($arr)>1?$arr[rand(0,count($arr)-1)]:$arr[0];
+}
 function error($code, $contentType, $reason=''){
 	if(empty($reason)&&!empty($contentType)&&!in_array($contentType, ['html','json','text'])){
 		$reason=$contentType;$contentType='json';
 	}
+	if(Conf::$mode=='Developing') elog($code);
 	$msg = Consts::$error_codes[''.$code];
 	header('HTTP/1.1 '.$code.' '.$msg, FALSE);
 	$req = REQ::getInstance();
@@ -221,13 +225,15 @@ function async($msg,$func){
 	$args = array_slice(func_get_args(), 2);
 	call_user_func_array ($func, $args);
 }
-function T($key){
-	$filename = null;
-	$lang = isset($_REQUEST['@lang'])?$_REQUEST['@lang']:
+function user_lang(){
+	return isset($_REQUEST['@lang'])?$_REQUEST['@lang']:
 					(!empty($_SESSION['lang']) ? $_SESSION['lang']:
 						(isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])?
-							substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):
-							Consts::$lang));
+							substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2):Consts::$lang));
+}
+function T($key){
+	$filename = null;
+	$lang = user_lang();
 	$text_func = function($fn){
 		$file = join(__SLASH__,[APP_DIR,'conf','text.csv']);
 		if (file_exists($file)){
@@ -292,7 +298,7 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 	$uri = $parts['path'];
 	$fmts = ['json','bson','text','html','csv'];
 	if(isset($parts['query']))
-		parse_str(str_replace('&amp;', '&', $parts['query']),$params);
+		parse_str(str_replace(['&amp;','&quot;'], ['&','"'], $parts['query']),$params);
 		if(($host=='localhost'||$host=="127.0.0.1") && (str_has($uri,'liber.php')||str_has($uri,'index.php')) && isset($params['__URL__']) ){
 		$uri = $params['__URL__'];
 		unset($params['__URL__']);
@@ -327,7 +333,9 @@ function parse_rest_uri($uri, $method, &$params){
 	foreach($params as $k=>$v){
 		if($k=='@format' && in_array($v, $fmts)) 
 			$res['format'] = $v;
-		$params[$k] = htmlEntities($v); 	}
+		if(preg_match('/^[\{\[].*[\}\]]$/',$v))			$params[$k] = $v;
+		else
+			$params[$k] = htmlEntities($v); 	}
 	unset($params['@format']);
 	if($params['@test_mode']) $_REQUEST['@test_mode']=1;
  	unset($params['@test_mode']);
@@ -423,8 +431,10 @@ class REQ {
 		self::$client_bot = $ua['bot'];
 		$req->data = parse_uri($uri, $method, $params, $ua);
 		$req->params = $req->data['params'];
-		if(Consts::$session_enable && !isset($_SESSION))
+		if(Consts::$session_enable && !isset($_SESSION)){
 			Session::start();
+			$_SESSION['lang'] = user_lang();
+		}
 		if(count(self::$instances)>1){
 			$req->is_thread = true;
 		}
@@ -528,6 +538,7 @@ class REQ {
             error_log('URI: ' . $this->getURI());
             error_log('METHOD: ' . $_SERVER['REQUEST_METHOD']);
             error_log('PARAMETERS: ' . json_encode($this->params));
+			error_log("HTTP_REFERER: ".$_SERVER["HTTP_REFERER"]);
         }
         try{
 			$data = $this->data;
@@ -660,8 +671,7 @@ function permission(){
 	$req = REQ::getInstance();
 	$uri = $req->getURI();
 	$schemaDef = $req->getData('schema_def');
-	$group = AuthDelegate::group();
-	$permission = '';
+	$group = AuthDelegate::group();			$permission = '';
 	if(!empty($schemaDef)){		$restful =  strtolower($schemaDef['general']['restful']?$schemaDef['general']['restful']:'');
 				if(!empty($restful) && $restful!='all' && !str_has($restful, $method)){ return false; }
 		$permission = isset($schemaDef['general']['permission'])?$schemaDef['general']['permission']:'';
@@ -684,10 +694,9 @@ function permission(){
 		$act = $req->getAction();
 				$permission = isset($tree[$act])?$tree[$act]:'F';
 	}
-	$bits = isset($permission)&&isset($permission[$group])?$permission[$group]:($group==0?'8':'F');
-	if($bits=='0') return $group==0? 401 : 403;
-		$bits = base_convert($bits, 16, 2); 
-		$bitIdx = array_search($req->getMethod(), ['get','post','put','delete']);
+	$bits = isset($permission)&&isset($permission[$group])?$permission[$group]:($group==0?'8':'F');	if($bits=='0') return $group==0? 401 : 403;
+	$bits = str_pad(base_convert($bits, 16, 2),4,'0',STR_PAD_LEFT);
+	$bitIdx = array_search(strtolower($req->getMethod()), ['get','post','put','delete']);
 	if($bits[$bitIdx]!='1') return $group==0? 401 : 403;
 	return 200;
 }
@@ -718,6 +727,38 @@ function str2hex($string){
 	}
 	return $hex;
 }
+function str2half($s){
+	return mb_convert_kana($s, "rnaskhc", 'UTF-8');
+}
+function wstr2num($s){
+	$v = 0;$n = 0;
+	$nmap = ['一'=>1,'壱'=>1,'壹'=>1,'弌'=>2,'二'=>2,'弐'=>2,'貳'=>2,'貮'=>2,'贰'=>2,'三'=>3,'参'=>3,'參'=>3,'弎'=>3,'叁'=>3,'叄'=>3,'四'=>4,'肆'=>4,'五'=>5,'伍'=>5,'六'=>6,'陸'=>6,'陸'=>6,'七'=>7,'漆'=>7,'柒'=>7,'八'=>8,'捌'=>8,'九'=>9,'玖'=>9];
+	$bmap = ['十'=>10,'拾'=>10,'廿'=>20,'卄'=>20,'卅'=>30,'丗'=>30,'卌'=>40,'百'=>100,'陌'=>100,'千'=>1000,'阡'=>1000,'仟'=>1000];
+	$b4map = ['万'=>10000,'萬'=>10000,'億'=>100000000,'兆'=>1000000000000];
+	$s = str2half($s);
+	$ns = "";
+	$sl = mb_strlen($s);
+	for($x=0;$x<$sl;$x++){
+		$c = mb_substr($s, $x, 1, 'UTF-8');
+		if(preg_match('/[0-9]/',$c)){
+			$ns.=$c;
+			$n = intval($ns);
+		}else if(isset($nmap[$c])){
+			$n=$nmap[$c];
+		}else if(isset($bmap[$c])){
+			$v+=$n*$bmap[$c];
+			$n=0;
+			$ns="";
+		}else if(isset($b4map[$c])){
+			if($n>0)$v+=$n;
+			$v*=$b4map[$c];
+			$n=0;
+			$ns="";
+		}
+	}
+	if($n>0)$v+=$n;
+	return $v;
+}
 function is_email($email){
 	return false !== filter_var( $email, FILTER_VALIDATE_EMAIL );
 }
@@ -732,6 +773,42 @@ function is_hash($arr){
 }
 function is_json($str){
 	return is_object(json_decode($str));
+}
+function is_kanji($s){
+	return preg_match('/^\p{Han}+$/',$s);
+}
+function is_katakana($s){
+	return preg_match('/^\p{Katakana}+$/',$s);
+}
+function is_hirakana($s){
+	return preg_match('/^\p{Hiragana}+$/',$s);
+}
+function is_number($s){
+	return preg_match('/^[\d\.]+$/',$s);
+}
+function is_phone_jp($s){
+	return preg_match('/^\d{2,4}[\-ー−]*\d{3,4}[\-ー−]*\d{3,4}$/',$s);
+}
+function is_zipcode_jp($s){
+	return preg_match('/^\d{3}[\-ー−]*\d{4}$/',$s);
+}
+function is_len($s,$min,$max=false){
+	$min = intval($min);
+	$max = $max===false?false:intval($max);
+	$l = strlen($s);
+ 	return ($max===false) ?$l>=$min : $l>=$min && $l<=$max;
+}
+function is_ymdhi($s){
+	return preg_match('/[12]\d{3}[\-ー年\.−]*\d{1,2}[\-ー月\.−]*\d{1,2}\s+(午前|午後|am|pm)*\d{1,2}[時:]\d{1,2}/u',$s);
+}
+function is_ymd($s){
+	return preg_match('/[12]\d{3}[\-ー年\.−]*\d{1,2}[\-ー月\.−]*\d{1,2}/u',$s);
+}
+function is_ym($s){
+	return preg_match('/[12]\d{3}[\-ー年\.−]*\d{1,2}/u',$s);
+}
+function is_hi($s){
+	return preg_match('/^(午前|午後|am|pm)*\d{1,2}[時:]\d{1,2}/u',$s);
 }
 function hash_incr($data, $key, $amount){
 	$v = self::get($data,$key,true,0);
@@ -785,10 +862,10 @@ function hash_get(&$data, $keyPath, $autoCreate=true, $defaultValue=null){
 		return $defaultValue;
 	return $o[$key];
 }
-function arr2hash($arr, $keyName, $valueName=null){
+function arr2hash($arr, $keyName, $valueName=null, $prefix=null){
 	$hash = [];
 	foreach ($arr as $e){
-		$hash[''.$e[$keyName]] = $valueName==null ? $e : $e[$valueName];
+		$hash[($prefix?$prefix:'').$e[$keyName]] = $valueName==null ? $e : $e[$valueName];
 	}
 	return $hash;
 }
@@ -998,7 +1075,45 @@ function fs_src_tree($phpfile){
 	}
 	return ['annotations' => empty($comment)?[]:fs_annotations($comment),'functions' => $funcs,'classes' => $classes];
 }
-
+function elog($o, $label=''){
+		$trace=debug_backtrace();
+	$m = strlen($trace[1]['class'])? $trace[1]['class']."::":"";
+	$m .= $trace[1]['function'];
+	$ws = is_array($o)?"\n":(strlen($o)>=10?"\n":"");
+	error_log($m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n");
+}
+function comp($a,$b,$cmp='eq',$k=false){
+	$v1 = is_hash($a)&&$k?$a[$k]:$a;
+	$v2 = is_hash($b)&&$k?$b[$k]:$b;
+	switch($cmp){
+		case 'eq':return $v1==$v2;
+		case 'ne':return $v1!=$v2;
+		case 'le':return $v1<=$v2;
+		case 'lt':return $v1<$v2;
+		case 'ge':return $v1>=$v2;
+		case 'gt':return $v1>$v2;
+	}
+}
+function arr_filter($arr, $v, $k=false, $comp='eq', &$i=false){
+	$res = [];$x=0;
+	if($arr){
+		foreach ($arr as $e) {
+			if(($k===false && comp($e,$v,$comp))||($k && comp($e[$k],$v,$comp))){
+				$res[]=$e;
+				if($i===false)$i=$x;
+			}
+			$x++;
+		}
+	}
+	return $res;
+}
+function arr_intersect($a1,$a2){
+	$r = [];
+	foreach ($a1 as $e) {
+		if(in_array($e, $a2))$r[]=$e;
+	}
+	return $r;
+}
 class Session {
 	static function start(){
 		session_start();
@@ -1165,7 +1280,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
 }
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
-	error_log($sql);
+	elog($sql);
 		if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
@@ -1238,21 +1353,26 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	$schema = $schema_def['schema'];
 	$pk = $schema_def['general']['pk'];
 	$pks=[];$qo=null;$isUpdate=false;
-	if (str_has($pk, '|')||str_has($pk, '+')||str_has($pk, ',')){
-		$pks = preg_split('/[\|\+,]/', $pk);
+	if(Conf::$mode=='Developing'){
+		elog(join(',',array_keys($data)),"$table");
+	}	
+	if (preg_match('/[|+,]/',$pk)){
+		$pks = preg_split('/[|+,]/', $pk);
 		$qo = [];
 		foreach ($pks as $p){
 			if(empty($data[$p])){
-				return false;
+				$qo=[];break;
 			}else 
 				$qo[$p] = $data[$p];
 		}
-		try{
-			$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo);
-		}catch(Exception $e){
-			error_log($e->getMessage().'\n');
+		if(!empty($qo)){
+			try{
+				$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo);
+			}catch(Exception $e){
+				elog($e->getMessage().'\n');
+			}
+			$isUpdate = !empty($ext);
 		}
-		$isUpdate = !empty($ext);
 	} else{
 		$id = isset($data[$pk]) ? $data[$pk] : null;
 		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
@@ -1298,9 +1418,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 			$valStmt .= $opr? '`'.$col.'` + :'.$col.' ' : ':'.$col;
 			$qdatas[$col] = is_array($val)?json_encode($val):$val ;		}
 		$sql = 'INSERT '.$ignore.' INTO `'.$table.'` ('.$colStmt.') VALUES('.$valStmt.')';
-					}
+	}
 	try {
-		if($returnId==true && !$isUpdate) {
+						if($returnId==true && !$isUpdate) {
 			if(!$pdo->inTransaction()) {
 				$res = pdo_trans($pdo,[$sql, 'SELECT LAST_INSERT_ID() as \'last_id\''],[$qdatas]);
 				$data['id'] = $res[0]['last_id'];
@@ -1988,37 +2108,26 @@ class Render {
 		flush();
 	}
 	static function paginate($page,$total,$opts=['perPage'=>20]){
-		$pp = ($opts['perPage']>0)? $opts['perPage']: 20;
-		$pi = $opts['items']?$opts['items']:9; 
-		$ptt = ceil($total/$pp); $half=floor($pi/2);
-		$pages = []; $begin = max(1,$page-$half); $end = min($ptt, $page+$half);
-		$cursor = 0;
-		for($i=$begin;$i<=$end;$i++){
-			$pages[]=$i;
-			if($i<$page) $cursor++;
-		}
-		if($begin>2) {
-			$b = $begin;
-			while(count($pages)<$pi-2 && $b>2){
-				array_unshift($pages,--$b);$cursor++;
+		$pp = ($opts['perPage']>0)? $opts['perPage']: 20;		$pi = $opts['items']?$opts['items']:9;		$ptotal = ceil($total/$pp);
+		$size 	= min($ptotal, max(7,$pi));
+		$pages 	= [$page];
+		if($ptotal>$size){
+			$seg = $size%2==0?$size+1:$size;
+			for ($i=1;count($pages)<$seg;$i++){
+				if($page-$i>=1) array_unshift($pages,$page-$i);
+				if($page+$i<=$ptotal)$pages[]=$page+$i;
 			}
-			if(count($pages)>$pi-2)$pages =[1,0]+$pages;
-			else{$pages = array_merge([1,0],$pages); $cursor+=2;}
+			if(end($pages)<=$ptotal-1)
+				$pages=array_merge(array_slice($pages,0,count($pages)-2),[0,$ptotal]);
+			if($pages[0]>=2)
+				$pages=array_merge([1,0],array_slice($pages,2,count($pages)));
+		}else{
+			$pages = [];
+			for($i=1;$i<=$ptotal;$i++)
+				if(!in_array($i,$pages))
+					$pages[]=$i;
 		}
-		if($begin==2) {array_unshift($pages, 1); $cursor++;}
-		if($ptt-$end>2) {
-			while(count($pages)>$pi-2){
-				$p = array_pop($pages);
-				if($p<$page)$cursor--;
-			}
-			if(count($pages)<$pi-2){
-				$e = $end;
-				while(count($pages)<$pi-2 && $e<$ptt-2){array_push($pages, ++$e);}
-			}
-			$pages = array_merge($pages,[0,$ptt]);
-		}
-		if($ptt-$end==2) $pages []= $ptt;
-		return ['pages'=>$pages,'cursor'=>$cursor];
+		return ['pages'=>$pages,'cursor'=>array_search($page,$pages)];
 	}
 }
 
@@ -2125,6 +2234,17 @@ function ql_filter($w, &$data){
 			$i++;
 		}
 	}
+		preg_match_all('/(?<pre>[&|]*)[a-z0-9_\.]+!*\{:(?<v>[^\}]+)\}(?<sur>[&|]*)/i', $w, $m);
+	if(!empty($m['v'])){
+		$i=0;
+		foreach ($m['v'] as $k) {
+			$pre=preg_match('/[&|]/',$m['pre'][$i])?'\\'.$m['pre'][$i]:'';
+			$sur=empty($pre)&&preg_match('/[&|]/',$m['sur'][$i])?'\\'.$m['sur'][$i]:'';
+			if(!in_array($k, $ks))
+				$w = preg_replace('/'.$pre.'[a-z0-9_\.]+!*\{:'.$k.'\}'.$sur.'/i', '', $w);
+			$i++;
+		}
+	}
 		$w = preg_replace(['/\([&|]/','/[&|]\)/','/^[&|]/','/[&|]$/'], ['(',')','',''], $w);
 	preg_match_all('/(?<pre>[&|]*)(?<bra>\(\))(?<sur>[&|]*)/i', $w, $m);
 	if(!empty($m['bra'])){
@@ -2153,6 +2273,8 @@ function ql_build_w($o, &$data){
 		'nb' 	=> '!($)',
 		'l' 	=> '/$/',
 		'nl' 	=> '!/$/',
+		'm' 	=> '{$}',
+		'nm' 	=> '!{$}',
 	];
 	$ws = [];
 	if(is_hash($o)){
@@ -2176,7 +2298,7 @@ function ql_build_w($o, &$data){
 	return '';
 }
 function ql_parse_w($q){
-	$sql = preg_replace(['/&/','/\|/',			'/\!=null/', 			'/=null/', 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(:([0-9a-z_]+)\)/i', 			'/(\!*)\[([^\]]+)\]/', 			'/(\!*)\/(:[^\/\^\$]+)\//', 			'/(\!*)\/([^\/]+)\//', 			'/%\^/', 			'/\$%/', 			'/\!(BETWEEN|IN|LIKE)\s/', 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',			],[' AND ',' OR ',			' IS NOT NULL ', 			' IS NULL ', 			' ($1 $2BETWEEN $3 AND $4) ', 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', 			' ($1 $2BETWEEN :$3) ', 			' $1IN ($2) ', 			' $1LIKE $2 ', 			' $1LIKE \'%$2%\' ', 			'', 							'', 							'NOT $1 ',			'$1.`$2`',			],$q);
+	$sql = preg_replace(['/&/','/\|/',			'/\!=null/', 			'/=null/', 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(:([0-9a-z_]+)\)/i', 			'/(\!*)\[([^\]]+)\]/', 			'/(\!*)\/(:[^\/\^\$]+)\//', 			'/(\!*)\/([^\/]+)\//', 			'/%\^/', 			'/\$%/', 			'/(\!*)\{(:[^\}\^\$]+)\}/', 			'/(\!*)\{([^\}]+)\}/', 			'/\!(BETWEEN|IN|LIKE)\s/', 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',			],[' AND ',' OR ',			' IS NOT NULL ', 			' IS NULL ', 			' ($1 $2BETWEEN $3 AND $4) ', 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', 			' ($1 $2BETWEEN :$3) ', 			' $1IN ($2) ', 			' $1LIKE $2 ', 			' $1LIKE \'%$2%\' ', 			'', 							'', 							'$1 REGEXP $2',			'$1 REGEXP \'$2\'',			'NOT $1 ',			'$1.`$2`',			],$q);
 		$sql = preg_replace_callback('/(?<k>\b[a-z0-9_`]+)(?<o>\s*[><=]\s*)(?<v>[^\s]+)(?=\s|$)/',function($m){
 						if(preg_match('/^[\d\.]+$/',$m['v']) || str_starts($m['v'],':') || preg_match('/^[a-z\d`_]+\.[a-z\d`_]+$/i', $m['v'])){
 			return $m['k'].$m['o'].$m['v']." ";

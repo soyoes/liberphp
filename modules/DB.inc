@@ -49,8 +49,8 @@ function pdo_conn($opts=null, $pdoOpts=null){
  **/
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
-	error_log($sql);
-	//error_log(json_encode($datas));	
+	elog($sql);
+	// error_log(json_encode($datas));	
 	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
@@ -126,21 +126,26 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	$schema = $schema_def['schema'];
 	$pk = $schema_def['general']['pk'];
 	$pks=[];$qo=null;$isUpdate=false;
-	if (str_has($pk, '|')||str_has($pk, '+')||str_has($pk, ',')){
-		$pks = preg_split('/[\|\+,]/', $pk);
+	if(Conf::$mode=='Developing'){
+		elog(join(',',array_keys($data)),"$table");
+	}	
+	if (preg_match('/[|+,]/',$pk)){
+		$pks = preg_split('/[|+,]/', $pk);
 		$qo = [];
 		foreach ($pks as $p){
 			if(empty($data[$p])){
-				return false;
+				$qo=[];break;
 			}else 
 				$qo[$p] = $data[$p];
 		}
-		try{
-			$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo);
-		}catch(Exception $e){
-			error_log($e->getMessage().'\n');
+		if(!empty($qo)){
+			try{
+				$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo);
+			}catch(Exception $e){
+				elog($e->getMessage().'\n');
+			}
+			$isUpdate = !empty($ext);
 		}
-		$isUpdate = !empty($ext);
 	} else{
 		$id = isset($data[$pk]) ? $data[$pk] : null;
 		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
@@ -188,10 +193,10 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 			$qdatas[$col] = is_array($val)?json_encode($val):$val ;//db_v($val, $schema[$col], $bson);
 		}
 		$sql = 'INSERT '.$ignore.' INTO `'.$table.'` ('.$colStmt.') VALUES('.$valStmt.')';
-		// error_log("sql=$sql");
-		// error_log('sqlData='.json_encode($data));
 	}
 	try {
+		// elog("sql=$sql");
+		// elog('sqlData='.json_encode($qdatas));
 		if($returnId==true && !$isUpdate) {
 			if(!$pdo->inTransaction()) {
 				$res = pdo_trans($pdo,[$sql, 'SELECT LAST_INSERT_ID() as \'last_id\''],[$qdatas]);
