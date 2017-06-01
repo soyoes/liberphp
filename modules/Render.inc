@@ -71,7 +71,6 @@ class Render {
 		$_REQUEST[self::$var_prefix."TMP_DATA"] = $this->data;
 		extract($this->data, EXTR_PREFIX_ALL, self::$var_prefix);
 		$r = $this->render_file($file,$wrapper_code);
-
 		$output = null;
 		if($r){
 			if($renderOnly){
@@ -101,7 +100,7 @@ class Render {
 			$prefix .= $this->data['__namespace']."-";
 		$filepath = self::$path.$file;
 		if(!file_exists($filepath)) return false;
-		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
+		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',str_replace('/','--',$file));
 		if(!file_exists($outpath)
 			//||(Consts::$mode=="Developing" && filemtime($filepath) > filemtime($outpath))){
 			||Consts::$mode=="Developing"){
