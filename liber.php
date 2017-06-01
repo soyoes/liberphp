@@ -1957,13 +1957,15 @@ class Render {
 		$template = isset($layout)? $layout : $this->layout;
 		$ns = $req?$req->getNamespace():"";
 		$ns = empty($ns)?"":$ns."-";
-		$key = 'template-'. REQ::getTemplateType()."-".$ns.$template;
+		$key = 'template-'. REQ::getTemplateType()."-".$ns.$template;		
 		$wrapper_code = cache_get($key, function($f){
 			$req = REQ::getInstance();
 			$ns = $req?$req->getNamespace():"";
 			$ns = empty($ns)?"":$ns."-";
 			$key_prefix = 'template-'.REQ::getTemplateType()."-".$ns;
-			return file_get_contents(Render::$path.str_replace($key_prefix,'',$f));
+			$fn = Render::$path.str_replace($key_prefix,'',$f);
+			if(!str_ends($fn,'.html')) $fn.='.html';	
+			return file_get_contents($fn);
 		},false);
 				if(!empty($data))
 		foreach ($data as $k=>$v)
@@ -2001,7 +2003,7 @@ class Render {
 			$prefix .= $this->data['__namespace']."-";
 		$filepath = self::$path.$file;
 		if(!file_exists($filepath)) return false;
-		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',$file);
+		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',str_replace('/','--',$file));
 		if(!file_exists($outpath)
 						||Consts::$mode=="Developing"){
 			$code = $this->compile($filepath,$template_code);
