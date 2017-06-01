@@ -440,7 +440,8 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 
 function parse_rest_uri($uri, $method, &$params){
 	$uri = preg_replace('/(^\/)|(\/$)/','',$uri);
-	$uparts =ds_remove(explode('/',$uri), '');
+	$uparts = explode('/',$uri);
+	$uparts =ds_remove($uparts, '');
 	$method = strtolower($method);
 	if ($method == 'put' || $method == 'delete') {
         parse_str(file_get_contents('php://input'), $input);
@@ -461,7 +462,7 @@ function parse_rest_uri($uri, $method, &$params){
 			$params[$k] = htmlEntities($v); //XSS	
 	}
 	unset($params['@format']);
-	if($params['@test_mode']) $_REQUEST['@test_mode']=1;
+	if(isset($params['@test_mode'])) $_REQUEST['@test_mode']=1;
  	unset($params['@test_mode']);
 	$resources = REQ::load_resources();
 	list($namespace, $controller, $action) =

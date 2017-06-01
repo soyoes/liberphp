@@ -50,7 +50,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
 	elog($sql);
-	// error_log(json_encode($datas));	
+	elog($datas);	
 	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
@@ -127,7 +127,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	$pk = $schema_def['general']['pk'];
 	$pks=[];$qo=null;$isUpdate=false;
 	if(Conf::$mode=='Developing'){
-		elog(join(',',array_keys($data)),"$table");
+		// elog(join(',',array_keys($data)),"$table");
 	}	
 	if (preg_match('/[|+,]/',$pk)){
 		$pks = preg_split('/[|+,]/', $pk);

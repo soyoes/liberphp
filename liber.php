@@ -318,7 +318,8 @@ function parse_uri($uri, $method, &$params=[], $ua=""){
 }
 function parse_rest_uri($uri, $method, &$params){
 	$uri = preg_replace('/(^\/)|(\/$)/','',$uri);
-	$uparts =ds_remove(explode('/',$uri), '');
+	$uparts = explode('/',$uri);
+	$uparts =ds_remove($uparts, '');
 	$method = strtolower($method);
 	if ($method == 'put' || $method == 'delete') {
         parse_str(file_get_contents('php://input'), $input);
@@ -337,7 +338,7 @@ function parse_rest_uri($uri, $method, &$params){
 		else
 			$params[$k] = htmlEntities($v); 	}
 	unset($params['@format']);
-	if($params['@test_mode']) $_REQUEST['@test_mode']=1;
+	if(isset($params['@test_mode'])) $_REQUEST['@test_mode']=1;
  	unset($params['@test_mode']);
 	$resources = REQ::load_resources();
 	list($namespace, $controller, $action) =
@@ -811,9 +812,9 @@ function is_hi($s){
 	return preg_match('/^(午前|午後|am|pm)*\d{1,2}[時:]\d{1,2}/u',$s);
 }
 function hash_incr($data, $key, $amount){
-	$v = self::get($data,$key,true,0);
+	$v = hash_set($data,$key,true,0);
 	$v += $amount;
-	return self::set($data, $key, $v);
+	return hash_set($data, $key, $v);
 }
 function hash_set(&$data, $keyPath, $val){
 	$paths = explode('.', $keyPath);
@@ -1281,7 +1282,8 @@ function pdo_conn($opts=null, $pdoOpts=null){
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
 	elog($sql);
-		if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
+	elog($datas);	
+	if($pdoOpt==null)$pdoOpt=PDO::FETCH_ASSOC;
 	$isQeury = str_starts(strtolower(trim($sql)), 'select');
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
@@ -1354,8 +1356,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 	$pk = $schema_def['general']['pk'];
 	$pks=[];$qo=null;$isUpdate=false;
 	if(Conf::$mode=='Developing'){
-		elog(join(',',array_keys($data)),"$table");
-	}	
+			}	
 	if (preg_match('/[|+,]/',$pk)){
 		$pks = preg_split('/[|+,]/', $pk);
 		$qo = [];
@@ -2298,7 +2299,11 @@ function ql_build_w($o, &$data){
 	return '';
 }
 function ql_parse_w($q){
-	$sql = preg_replace(['/&/','/\|/',			'/\!=null/', 			'/=null/', 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(:([0-9a-z_]+)\)/i', 			'/(\!*)\[([^\]]+)\]/', 			'/(\!*)\/(:[^\/\^\$]+)\//', 			'/(\!*)\/([^\/]+)\//', 			'/%\^/', 			'/\$%/', 			'/(\!*)\{(:[^\}\^\$]+)\}/', 			'/(\!*)\{([^\}]+)\}/', 			'/\!(BETWEEN|IN|LIKE)\s/', 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',			],[' AND ',' OR ',			' IS NOT NULL ', 			' IS NULL ', 			' ($1 $2BETWEEN $3 AND $4) ', 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', 			' ($1 $2BETWEEN :$3) ', 			' $1IN ($2) ', 			' $1LIKE $2 ', 			' $1LIKE \'%$2%\' ', 			'', 							'', 							'$1 REGEXP $2',			'$1 REGEXP \'$2\'',			'NOT $1 ',			'$1.`$2`',			],$q);
+	$sql = preg_replace([
+			'/&&/','/\|\|/',			'/&/','/\|/',			'/\!=null/', 			'/=null/', 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(([^,]+),([^\)]+)\)/i', 			'/([\da-z_\.]+)(\!*)\(:([0-9a-z_]+)\)/i', 			'/(\!*)\[([^\]]+)\]/', 			'/(\!*)\/(:[^\/\^\$]+)\//', 			'/(\!*)\/([^\/]+)\//', 			'/%\^/', 			'/\$%/', 			'/(\!*)\{(:[^\}\^\$]+)\}/', 			'/(\!*)\{([^\}]+)\}/', 			'/\!(BETWEEN|IN|LIKE)\s/', 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',			'/@binAND\s(:[a-zA-Z0-9\._]+)/','/@binOR\s(:[a-zA-Z0-9\._]+)/',
+			],[
+			' @binAND ',' @binOR ',			' AND ',' OR ',			' IS NOT NULL ', 			' IS NULL ', 			' ($1 $2BETWEEN $3 AND $4) ', 			' ($1 $2BETWEEN \'$3\' AND \'$4\') ', 			' ($1 $2BETWEEN :$3) ', 			' $1IN ($2) ', 			' $1LIKE $2 ', 			' $1LIKE \'%$2%\' ', 			'', 							'', 							'$1 REGEXP $2',			'$1 REGEXP \'$2\'',			'NOT $1 ',			'$1.`$2`',			'& b\'$1\'','| b\'$1\'',
+			],$q);
 		$sql = preg_replace_callback('/(?<k>\b[a-z0-9_`]+)(?<o>\s*[><=]\s*)(?<v>[^\s]+)(?=\s|$)/',function($m){
 						if(preg_match('/^[\d\.]+$/',$m['v']) || str_starts($m['v'],':') || preg_match('/^[a-z\d`_]+\.[a-z\d`_]+$/i', $m['v'])){
 			return $m['k'].$m['o'].$m['v']." ";
@@ -2353,9 +2358,9 @@ spl_autoload_register(function($class){
 		include_once $class.'.php';
 });
 try{
-	$cli_args = array_slice($argv, 1);
-	$cli_cmd = array_shift($cli_args);
 	if(php_sapi_name() == 'cli' || PHP_SAPI == 'cli'){
+		$cli_args = array_slice($argv, 1);
+		$cli_cmd = array_shift($cli_args);
 		$cli_cmd="cli_".$cli_cmd;
 		if(function_exists($cli_cmd)){$cli_cmd();}
 	}else{

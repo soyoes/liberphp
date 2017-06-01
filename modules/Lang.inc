@@ -135,9 +135,9 @@ function is_hi($s){
 }
 
 function hash_incr($data, $key, $amount){
-	$v = self::get($data,$key,true,0);
+	$v = hash_set($data,$key,true,0);
 	$v += $amount;
-	return self::set($data, $key, $v);
+	return hash_set($data, $key, $v);
 }
 
 /**

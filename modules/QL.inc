@@ -292,7 +292,9 @@ function ql_build_w($o, &$data){
 	echo $sql."<br>";
  */
 function ql_parse_w($q){
-	$sql = preg_replace(['/&/','/\|/',//and or
+	$sql = preg_replace([
+			'/&&/','/\|\|/',//binary & |
+			'/&/','/\|/',//and or
 			'/\!=null/', //is not null
 			'/=null/', //is null
 			'/([\da-z_\.]+)(\!*)\((:[^,]+),(:[^\)]+)\)/i', //between with statement 2 vars
@@ -307,7 +309,10 @@ function ql_parse_w($q){
 			'/(\!*)\{([^\}]+)\}/', //regexp
 			'/\!(BETWEEN|IN|LIKE)\s/', //not
 			'/(?<=^|[=<>\s\(])([a-z0-9_]+)\.([a-z0-9_]+)(?=[=<>\s\)]*|$)/i',//wrapper on tablename.colname
-			],[' AND ',' OR ',//and or
+			'/@binAND\s(:[a-zA-Z0-9\._]+)/','/@binOR\s(:[a-zA-Z0-9\._]+)/',
+			],[
+			' @binAND ',' @binOR ',//binary & |
+			' AND ',' OR ',//and or
 			' IS NOT NULL ', //is not null
 			' IS NULL ', //is null
 			' ($1 $2BETWEEN $3 AND $4) ', //between with statement variable
@@ -322,8 +327,8 @@ function ql_parse_w($q){
 			'$1 REGEXP \'$2\'',//regexp
 			'NOT $1 ',//not
 			'$1.`$2`',//wrapper on tablename.colname
+			'& b\'$1\'','| b\'$1\'',
 			],$q);
-
 	//solve single quota of k=v
 	$sql = preg_replace_callback('/(?<k>\b[a-z0-9_`]+)(?<o>\s*[><=]\s*)(?<v>[^\s]+)(?=\s|$)/',function($m){
 		// echo "v=$m[v]<br>";
@@ -339,9 +344,10 @@ function ql_parse_w($q){
 	$sql = preg_replace_callback('/(?<=IN\s)\((?<v>[^:][^\)]+)/',function($m){
         return "('".implode("','", explode(',', $m['v']))."'";
     },$sql);
-
+	
 	return $sql;
 }
+
 
 /**
  * parse FROM table, fields string to sql string

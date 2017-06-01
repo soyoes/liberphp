@@ -120,9 +120,9 @@ spl_autoload_register(function(\$class){
 		include_once \$class.'.php';
 });
 try{
-	\$cli_args = array_slice(\$argv, 1);
-	\$cli_cmd = array_shift(\$cli_args);
 	if(php_sapi_name() == 'cli' || PHP_SAPI == 'cli'){
+		\$cli_args = array_slice(\$argv, 1);
+		\$cli_cmd = array_shift(\$cli_args);
 		\$cli_cmd="cli_".\$cli_cmd;
 		if(function_exists(\$cli_cmd)){\$cli_cmd();}
 	}else{
