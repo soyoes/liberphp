@@ -232,7 +232,12 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 			$condition['fields'] = $def['fields'];
 			$tc = $def['target_column'];
 			if(count($ds[$col])>1){
-				$condition[$tc.'@in']=join(',',$ds[$col]);
+				$ds[$col] = array_filter($ds[$col], function($e){
+					return $e && $e!='';
+				});
+				if(!empty($ds[$col]))$ds[$col]=array_unique($ds[$col]);
+				if(!empty($ds[$col]))
+					$condition[$tc.'@in']=join(',',$ds[$col]);
 			}else
 				$condition[$tc]=$ds[$col][0];
 			$re = pdo_find($pdo,$def['table'],$condition, false, $pdoOpt);

@@ -41,7 +41,8 @@ function str2hex($string){
 	return $hex;
 }
 function str2half($s){
-	return mb_convert_kana($s, "rnaskhc", 'UTF-8');
+	//return mb_convert_kana($s, "rnaskhc", 'UTF-8');
+	return mb_convert_kana($s, "a", 'UTF-8');
 }
 /**
 	* kanji num => 0-9 form number
@@ -550,7 +551,11 @@ function elog($o, $label=''){
 	$m = strlen($trace[1]['class'])? $trace[1]['class']."::":"";
 	$m .= $trace[1]['function'];
 	$ws = is_array($o)?"\n":(strlen($o)>=10?"\n":"");
-	error_log($m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n");
+	$s = $m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n";	
+	if(property_exists('Conf','log_file'))
+		file_put_contents(Conf::$log_file,date('[m/d H:i:s]').':'.$s,FILE_APPEND);
+	else
+		error_log($s);
 }
 
 
