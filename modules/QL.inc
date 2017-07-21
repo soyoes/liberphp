@@ -277,6 +277,7 @@ function ql_build_w($o, &$data){
 	return '';
 }
 
+
 /**
  * build SQL WHERE clause,with ql [w]here clause
  * @param  [string] $q
@@ -333,7 +334,7 @@ function ql_parse_w($q){
 	$sql = preg_replace_callback('/(?<k>\b[a-z0-9_`]+)(?<o>\s*[><=]\s*)(?<v>[^\s]+)(?=\s|$)/',function($m){
 		// echo "v=$m[v]<br>";
 		// echo "r=".preg_match('/^[a-z\d`_]+\.[a-z\d`_]+$/i', $m['v'])."<br>";
-		if(preg_match('/^[\d\.]+$/',$m['v']) || str_starts($m['v'],':') || preg_match('/^[a-z\d`_]+\.[a-z\d`_]+$/i', $m['v'])){
+		if(preg_match('/^[\d\.]+$/',$m['v']) || $m['v'][0]==':' || preg_match('/^[a-z\d`_]+\.[a-z\d`_]+$/i', $m['v'])){
 			return $m['k'].$m['o'].$m['v']." ";
 		}else {
 			return $m['k'].$m['o']."'".$m['v']."' ";
@@ -344,10 +345,9 @@ function ql_parse_w($q){
 	$sql = preg_replace_callback('/(?<=IN\s)\((?<v>[^:][^\)]+)/',function($m){
         return "('".implode("','", explode(',', $m['v']))."'";
     },$sql);
-	
+
 	return $sql;
 }
-
 
 /**
  * parse FROM table, fields string to sql string

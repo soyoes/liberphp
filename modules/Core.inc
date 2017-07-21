@@ -538,6 +538,30 @@ function parse_user_agent($ua=""){
 }
 
 /**
+ * check required request parameters, if empty return error($code)
+ *
+ * @param [type] $p
+ * @param [type] $keys
+ * @param integer $code
+ * @param string $msg
+ * @return required param values. [$a, $b ...];
+ */
+function check_params($p, $keys, $code=400, $msg='Parameter error'){
+	$res = [];
+	if(!empty($keys)){
+		if(is_string($keys))$keys=explode(',',$keys);
+		foreach($keys as $k){
+			if(!isset($p[$k])){
+				error($code, $msg);
+			}
+			$res[]=$p[$k];
+		}
+	}
+	return $res;
+}
+
+
+/**
  * Encapsulate request variables for security reason
  */
 class REQ {

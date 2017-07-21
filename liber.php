@@ -391,6 +391,19 @@ function parse_user_agent($ua=""){
 		$bot = false;
 	return ['type'=>$type,'bot'=>$bot];
 }
+function check_params($p, $keys, $code=400, $msg='Parameter error'){
+	$res = [];
+	if(!empty($keys)){
+		if(is_string($keys))$keys=explode(',',$keys);
+		foreach($keys as $k){
+			if(empty($p[$k])){
+				error($code, $msg);
+			}
+			$res[]=$p[$k];
+		}
+	}
+	return $res;
+}
 class REQ {
 	private static $resources = null;
 	private static $instances = [];
@@ -729,7 +742,7 @@ function str2hex($string){
 	return $hex;
 }
 function str2half($s){
-	return mb_convert_kana($s, "rnaskhc", 'UTF-8');
+		return mb_convert_kana($s, "a", 'UTF-8');
 }
 function wstr2num($s){
 	$v = 0;$n = 0;
@@ -1081,7 +1094,11 @@ function elog($o, $label=''){
 	$m = strlen($trace[1]['class'])? $trace[1]['class']."::":"";
 	$m .= $trace[1]['function'];
 	$ws = is_array($o)?"\n":(strlen($o)>=10?"\n":"");
-	error_log($m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n");
+	$s = $m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n";	
+	if(property_exists('Conf','log_file') && Conf::$log_file)
+		file_put_contents(Conf::$log_file,date('[m/d H:i:s]').':'.$s,FILE_APPEND);
+	else
+		error_log($s);
 }
 function comp($a,$b,$cmp='eq',$k=false){
 	$v1 = is_hash($a)&&$k?$a[$k]:$a;
@@ -1279,6 +1296,11 @@ function pdo_conn($opts=null, $pdoOpts=null){
 	$pdoOpts = $pdoOpts ? $pdoOpts :[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,PDO::ATTR_PERSISTENT => true];
 	return new PDO($conn_str,$opts['user'],$opts['pass'],$pdoOpts);
 }
+function pdo_desc($pdo,$table){
+	$q = $pdo->prepare("SHOW COLUMNS FROM `$table`");
+    $q->execute();
+    return $q->fetchAll();
+}
 function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 	if(!$pdo || empty($sql))return false;
 	elog($sql);
@@ -1294,6 +1316,7 @@ function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 }
 function pdo_count($pdo, $sql, $datas=[], $col=0){
 	if(!$pdo || empty($sql))return false;
+elog($sql,"pdo_count");	
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
 		return false;
@@ -1345,13 +1368,16 @@ function pdo_import($pdo, $table, $datas, $regName='regAt', $updName='updAt'){
 		return false;
 	}
 }
-function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
+function pdo_save($pdo, $table, $data, $returnId=false, $schema_def=false){
 	if(!isset($pdo) || !isset($table) || !is_hash($data) || empty($data))return false;
 	$regName = Consts::$schema_reg;
 	$updName = Consts::$schema_upd;
 	list($table,$schemaname) = explode('@',$table);
-	if(empty($schemaname)) $schemaname = $table;
-	$schema_def = db_schema($schemaname);
+	if(!$schema_def){
+		if(empty($schemaname)) $schemaname = $table;
+		$schema_def = db_schema($schemaname);
+	}else if(is_string($schema_def))
+		$schema_def=json_decode($schema_def,true);
 	$schema = $schema_def['schema'];
 	$pk = $schema_def['general']['pk'];
 	$pks=[];$qo=null;$isUpdate=false;
@@ -1368,7 +1394,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		}
 		if(!empty($qo)){
 			try{
-				$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo);
+				$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo, false, false, $schema_def);
 			}catch(Exception $e){
 				elog($e->getMessage().'\n');
 			}
@@ -1376,7 +1402,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		}
 	} else{
 		$id = isset($data[$pk]) ? $data[$pk] : null;
-		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
+		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id, $pk);
 	}
 	$sql = '';
 	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
@@ -1440,9 +1466,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		return false;
 	}
 }
-function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
+function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null, $schema_def=false){
 	if(!$pdo || !$table)return false;
-	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts);
+	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts,[],false,$schema_def);
 	$sql = 'SELECT '.$colStr.' FROM '.$table.$optStr;
 	$res = pdo_query($pdo, $sql, $datas, $pdoOpt);
 	if(!empty($conns) && !empty($res)){
@@ -1456,10 +1482,15 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 			$condition['fields'] = $def['fields'];
 			$tc = $def['target_column'];
 			if(count($ds[$col])>1){
-				$condition[$tc.'@in']=join(',',$ds[$col]);
+				$ds[$col] = array_filter($ds[$col], function($e){
+					return $e && $e!='';
+				});
+				if(!empty($ds[$col]))$ds[$col]=array_unique($ds[$col]);
+				if(!empty($ds[$col]))
+					$condition[$tc.'@in']=join(',',$ds[$col]);
 			}else
 				$condition[$tc]=$ds[$col][0];
-			$re = pdo_find($pdo,$def['table'],$condition, false, $pdoOpt);
+			$re = pdo_find($pdo,$def['table'],$condition, false, $pdoOpt, $schema_def);
 			$extras[$conn]=[];
 			foreach ($re as $r) {
 				$k = $r[$tc];
@@ -1487,12 +1518,12 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 		return $res;
 	}
 }
-function pdo_exists($pdo, $table, $id){
+function pdo_exists($pdo, $table, $id, $pk=false){
 	if(!isset($pdo) ||!isset($table) || !isset($id))
 		return false;
 	list($table,$schemaname) = explode('@',$table);
 	if(empty($schemaname)) $schemaname = $table;
-	$pk = db_schema($schemaname)['general']['pk'];
+	$pk = $pk ?: db_schema($schemaname)['general']['pk'];
 	$entity =pdo_count($pdo, "select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
 	return $entity>0;
 }
@@ -1568,6 +1599,14 @@ function db_query($sql, $datas=[], $useCache = false, $pdoOpt=null) {
 		return null;
 	}
 }
+function db_desc($table, $fullInfo=false){
+	$db = db_conn();
+	$cs = pdo_desc($db,$table);
+	return $fullInfo? $cs : array_map(function($e){return $e['Field'];},$cs);
+}
+function db_query_column($sql, $datas=[], $col){
+	return db_query($sql,$datas,false,PDO::FETCH_COLUMN);
+}
 function db_count($sql=null, $datas=[], $useCache=false){
 	try {
 		if($useCache){
@@ -1590,24 +1629,28 @@ function db_attr($attr, $val){
 	$db = db_conn();
 	$db->setAttribute($attr, $val);
 }
-function db_find($table, $opts=[], $withCount=false, $pdoOpt=null){
-	return pdo_find(db_conn(), $table, $opts, $withCount, $pdoOpt);
+function db_find($table, $opts=[], $withCount=false, $pdoOpt=null, $schema_def=false){
+	return pdo_find(db_conn(), $table, $opts, $withCount, $pdoOpt, $schema_def);
 }
-function db_find1st($table, $opts=[], $pdoOpt=null){
+function db_find1st($table, $opts=[], $pdoOpt=null,$schema_def=false){
 	$opts['limit']=1;
-	$res = db_find($table,$opts,false,$pdoOpt);
+	$res = db_find($table,$opts,false,$pdoOpt,$schema_def);
 	return isset($res)&&$res!=false ? $res[0]:false;
 }
 function db_import($table, $datas){
 	return pdo_import(db_conn(), $table, $datas, Consts::$schema_reg, Consts::$schema_upd);
 }
-function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
+function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false, $schemaDef=false){
 	db_init_filters();
 	if(!isset($table))return false;
 		list($table,$schemaname) = explode('@',$table);
 	if(empty($schemaname)) $schemaname = $table;
-	$colStr = '*'; 	$schemas = db_schema();
-	$schemaDef = $schemas[$schemaname];
+	$colStr = '*'; 	if(!empty($schemaDef)){
+		$schemaDef=is_string($schemaDef)?json_decode($schemaDef,true):$schemaDef;
+	}else{
+		$schemas = db_schema();
+		$schemaDef = $schemas[$schemaname];
+	}
 	$pk = $schemaDef['general']['pk'];
 	$schema = $schemaDef['schema'];
 	$connect = $schemaDef['connect'];
@@ -1765,8 +1808,8 @@ function db_migrate($schemaName, $tableName=null){
 		echo 'Created '.$tableName.'</br>\n';
 	else return true;
 }
-function db_save($table, $data, $returnId=false, $bson=false){
-	return pdo_save(db_conn(), $table, $data, $returnId);
+function db_save($table, $data, $returnId=false, $schema_def=false){
+	return pdo_save(db_conn(), $table, $data, $returnId,$schema_def);
 }
 function db_schema($schemaName=null){
 	$schemas = cache_get('DB_SCHEMAS', function($key){ 

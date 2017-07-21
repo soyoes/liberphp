@@ -44,6 +44,18 @@ function pdo_conn($opts=null, $pdoOpts=null){
 	return new PDO($conn_str,$opts['user'],$opts['pass'],$pdoOpts);
 }
 
+function pdo_tables($pdo,$db){
+	$q = $pdo->prepare("SHOW TABLES FROM `$db`");
+    $q->execute();
+    return $q->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function pdo_desc($pdo,$table){
+	$q = $pdo->prepare("SHOW COLUMNS FROM `$table`");
+    $q->execute();
+    return $q->fetchAll();
+}
+
 /**
  *query with pdo instance 
  **/
@@ -64,6 +76,7 @@ function pdo_query($pdo, $sql, $datas=[], $pdoOpt=null) {
 
 function pdo_count($pdo, $sql, $datas=[], $col=0){
 	if(!$pdo || empty($sql))return false;
+elog($sql,"pdo_count");	
 	$statement = $pdo->prepare($sql);
 	if ($statement->execute ($datas) == FALSE) {
 		return false;
@@ -116,13 +129,16 @@ function pdo_import($pdo, $table, $datas, $regName='regAt', $updName='updAt'){
 		return false;
 	}
 }
-function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
+function pdo_save($pdo, $table, $data, $returnId=false, $schema_def=false){
 	if(!isset($pdo) || !isset($table) || !is_hash($data) || empty($data))return false;
 	$regName = Consts::$schema_reg;
 	$updName = Consts::$schema_upd;
 	list($table,$schemaname) = explode('@',$table);
-	if(empty($schemaname)) $schemaname = $table;
-	$schema_def = db_schema($schemaname);
+	if(!$schema_def){
+		if(empty($schemaname)) $schemaname = $table;
+		$schema_def = db_schema($schemaname);
+	}else if(is_string($schema_def))
+		$schema_def=json_decode($schema_def,true);
 	$schema = $schema_def['schema'];
 	$pk = $schema_def['general']['pk'];
 	$pks=[];$qo=null;$isUpdate=false;
@@ -140,7 +156,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		}
 		if(!empty($qo)){
 			try{
-				$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo);
+				$ext = pdo_find($pdo, $table.'@'.$schemaname, $qo, false, false, $schema_def);
 			}catch(Exception $e){
 				elog($e->getMessage().'\n');
 			}
@@ -148,7 +164,7 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		}
 	} else{
 		$id = isset($data[$pk]) ? $data[$pk] : null;
-		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id);
+		$isUpdate = isset($id) && pdo_exists($pdo, $table.'@'.$schemaname, $id, $pk);
 	}
 	$sql = '';
 	if(array_key_exists($updName,$schema) && !isset($data[$updName])){
@@ -216,9 +232,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $bson=false){
 		return false;
 	}
 }
-function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
+function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null, $schema_def=false){
 	if(!$pdo || !$table)return false;
-	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts);
+	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts,[],false,$schema_def);
 	$sql = 'SELECT '.$colStr.' FROM '.$table.$optStr;
 	$res = pdo_query($pdo, $sql, $datas, $pdoOpt);
 	if(!empty($conns) && !empty($res)){
@@ -240,7 +256,7 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 					$condition[$tc.'@in']=join(',',$ds[$col]);
 			}else
 				$condition[$tc]=$ds[$col][0];
-			$re = pdo_find($pdo,$def['table'],$condition, false, $pdoOpt);
+			$re = pdo_find($pdo,$def['table'],$condition, false, $pdoOpt, $schema_def);
 			$extras[$conn]=[];
 			foreach ($re as $r) {
 				$k = $r[$tc];
@@ -270,12 +286,12 @@ function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null){
 		return $res;
 	}
 }
-function pdo_exists($pdo, $table, $id){
+function pdo_exists($pdo, $table, $id, $pk=false){
 	if(!isset($pdo) ||!isset($table) || !isset($id))
 		return false;
 	list($table,$schemaname) = explode('@',$table);
 	if(empty($schemaname)) $schemaname = $table;
-	$pk = db_schema($schemaname)['general']['pk'];
+	$pk = $pk ?: db_schema($schemaname)['general']['pk'];
 	$entity =pdo_count($pdo, "select count(*) from $table where `$pk`=:$pk",[$pk=>$id]);
 	return $entity>0;
 }
@@ -369,6 +385,16 @@ function db_query($sql, $datas=[], $useCache = false, $pdoOpt=null) {
 	}
 }
 
+function db_desc($table, $fullInfo=false){
+	$db = db_conn();
+	$cs = pdo_desc($db,$table);
+	return $fullInfo? $cs : array_map(function($e){return $e['Field'];},$cs);
+}
+
+function db_query_column($sql, $datas=[], $col){
+	return db_query($sql,$datas,false,PDO::FETCH_COLUMN);
+}
+
 /**
  * return number result of 'SELECT COUNT'
  */
@@ -386,8 +412,8 @@ function db_count($sql=null, $datas=[], $useCache=false){
 		}
 		return $res;
 	} catch (PDOException $e) {
-		error_log($sql);
-		return -1;
+		elog($e,$sql);
+		return 0;
 	}
 }
 
@@ -434,8 +460,8 @@ function db_attr($attr, $val){
 	]);
  * 
  */
-function db_find($table, $opts=[], $withCount=false, $pdoOpt=null){
-	return pdo_find(db_conn(), $table, $opts, $withCount, $pdoOpt);
+function db_find($table, $opts=[], $withCount=false, $pdoOpt=null, $schema_def=false){
+	return pdo_find(db_conn(), $table, $opts, $withCount, $pdoOpt, $schema_def);
 }
 /**
  * search with data options, returns 1st matched record.
@@ -448,9 +474,9 @@ function db_find($table, $opts=[], $withCount=false, $pdoOpt=null){
  	]);
  *
  */
-function db_find1st($table, $opts=[], $pdoOpt=null){
+function db_find1st($table, $opts=[], $pdoOpt=null,$schema_def=false){
 	$opts['limit']=1;
-	$res = db_find($table,$opts,false,$pdoOpt);
+	$res = db_find($table,$opts,false,$pdoOpt,$schema_def);
 	return isset($res)&&$res!=false ? $res[0]:false;
 }
 
@@ -491,7 +517,7 @@ function db_import($table, $datas){
  * @param $colPrefix : add prefix to colStr, optStr
  * @return array or false
  */
-function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
+function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false, $schemaDef=false){
 	db_init_filters();
 	if(!isset($table))return false;
 	//tablename may be different with schema's
@@ -499,8 +525,12 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false){
 	if(empty($schemaname)) $schemaname = $table;
 
 	$colStr = '*'; //default, query all cols of a single table.
-	$schemas = db_schema();
-	$schemaDef = $schemas[$schemaname];
+	if(!empty($schemaDef)){
+		$schemaDef=is_string($schemaDef)?json_decode($schemaDef,true):$schemaDef;
+	}else{
+		$schemas = db_schema();
+		$schemaDef = $schemas[$schemaname];
+	}
 	$pk = $schemaDef['general']['pk'];
 	$schema = $schemaDef['schema'];
 	$connect = $schemaDef['connect'];
@@ -647,11 +677,14 @@ function db_update($table, $data, $opts=[]){
 	@param $tableName : table name to create, default name = schemaName
  */
 function db_migrate($schemaName, $tableName=null){
+	$pdo = db_conn();
+	return pdo_migrate($pdo,Consts::$db_name,$schemaName,$tableName);
+}
+function pdo_migrate($pdo,$dbn,$schemaName,$tableName=null){
 	$isCLI = (php_sapi_name() === 'cli');
-	$dbn = Consts::$db_name;
 	if(empty($tableName))$tableName=$schemaName;
-	$sql = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$dbn' AND table_name='$tableName';";
-	$res = db_count($sql,[], false);
+	$sql = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$dbn' AND table_name='$tableName'";
+	$res = pdo_count($pdo,$sql,[], false);
 	if ($res<=0 ){//schema doesn't exist
 		$schema_def = db_schema($schemaName);
 		$schema = $schema_def['schema'];
@@ -678,7 +711,8 @@ function db_migrate($schemaName, $tableName=null){
 		}else{
 			$sql = "CREATE TABLE `$dbn`.`$tableName` ( $colStmt PRIMARY KEY (`$pk`)) ENGINE=$engine $incStmt DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
 		}
-		$res = db_query($sql);
+		elog($sql,"migrate");
+		$res = pdo_query($pdo,$sql);
 		
 		//index
 		$index = $schema_def['index'];
@@ -690,7 +724,7 @@ function db_migrate($schemaName, $tableName=null){
 				$indextype = ($engine == 'MEMORY' && strtolower($desc)=='hash') ? ' USING HASH' : ' ';
 				$sql = "CREATE ${desc}INDEX $name ON `$tableName` (`$cols`) $indextype";
 				if($isCLI) echo $sql.'\n';
-				db_query($sql);
+				pdo_query($pdo,$sql);
 			}
 		}
 		
@@ -707,7 +741,7 @@ function db_migrate($schemaName, $tableName=null){
  * @params $data: assoc array , one data record
  * 		insert => new record data, update => changes
  * @params $returnId : whether return new id.
- * @params $bson : compress json field to bson
+ * @params $schema_def : scheme def assoc-array (as same as ini file content)
  * @example :
  	db_save('tasks', [
 		'ownerId'	=> 3,
@@ -716,8 +750,8 @@ function db_migrate($schemaName, $tableName=null){
 	],true,true) //data will be saved as bson.
  * 
  * */
-function db_save($table, $data, $returnId=false, $bson=false){
-	return pdo_save(db_conn(), $table, $data, $returnId);
+function db_save($table, $data, $returnId=false, $schema_def=false){
+	return pdo_save(db_conn(), $table, $data, $returnId,$schema_def);
 }
 
 /**

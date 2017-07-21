@@ -552,7 +552,7 @@ function elog($o, $label=''){
 	$m .= $trace[1]['function'];
 	$ws = is_array($o)?"\n":(strlen($o)>=10?"\n":"");
 	$s = $m." #".$trace[0]['line']." $label=$ws".(is_array($o)?json_encode($o,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE):$o)."\n";	
-	if(property_exists('Conf','log_file'))
+	if(property_exists('Conf','log_file') && Conf::$log_file)
 		file_put_contents(Conf::$log_file,date('[m/d H:i:s]').':'.$s,FILE_APPEND);
 	else
 		error_log($s);
