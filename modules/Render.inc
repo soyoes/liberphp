@@ -15,8 +15,6 @@
  * 
  */
 class Render {
-	static $path;
-
 	private static $var_prefix = 'LBR_';
 
 	private static $output_path;
@@ -25,13 +23,14 @@ class Render {
 	private $layout = '_layout';
 	private $data = [];
 	private $contents = [];
+	private $path;
 	
 	private function __construct(){}
 	
 	static function factory($path){
-		self::$path = $path.__SLASH__;
 		self::$output_path = APP_DIR.__SLASH__.'tmp'.__SLASH__;
 		$render = new Render();
+		$render->path = $path.__SLASH__;
 		return $render;
 	}
 	
@@ -54,7 +53,7 @@ class Render {
 			$ns = $req?$req->getNamespace():"";
 			$ns = empty($ns)?"":$ns."-";
 			$key_prefix = 'template-'.REQ::getTemplateType()."-".$ns;
-			$fn = Render::$path.str_replace($key_prefix,'',$f);
+			$fn = $this->path.str_replace($key_prefix,'',$f);
 			if(!str_ends($fn,'.html')) $fn.='.html';	
 			return file_get_contents($fn);
 		},false);
@@ -100,7 +99,7 @@ class Render {
 		$prefix  = 'template-' . REQ::getTemplateType() . '-';
 		if(!empty($this->data['__namespace']))
 			$prefix .= $this->data['__namespace']."-";
-		$filepath = self::$path.$file;
+		$filepath = $this->path.$file;
 		if(!file_exists($filepath)) return false;
 		$outpath = self::$output_path. $prefix .str_replace(self::$ext,'.php',str_replace('/','--',$file));
 		if(!file_exists($outpath)
