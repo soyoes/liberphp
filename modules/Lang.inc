@@ -610,3 +610,11 @@ function arr_intersect($a1,$a2){
 	}
 	return $r;
 }
+
+function arr_diff($a,$base){
+	$r = [];
+	foreach ($a as $e) {
+		if(!in_array($e, $base))$r[]=$e;
+	}
+	return $r;
+}

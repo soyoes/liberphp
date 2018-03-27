@@ -144,7 +144,9 @@ function pdo_save($pdo, $table, $data, $returnId=false, $schema_def=false){
 	$pks=[];$qo=null;$isUpdate=false;
 	if(Conf::$mode=='Developing'){
 		// elog(join(',',array_keys($data)),"$table");
-	}	
+	}
+	if(isset($data[$pk])&&$data[$pk]=='')
+		unset($data[$pk]);
 	if (preg_match('/[|+,]/',$pk)){
 		$pks = preg_split('/[|+,]/', $pk);
 		$qo = [];
@@ -363,24 +365,16 @@ function pdo_trans($pdo,$querys,$datas,$pdoOpt){
  * 	db_query('select * from tasks where `id`=?',[1]);
  */
 function db_query($sql, $datas=[], $useCache = false, $pdoOpt=null) {
+	$db = false ;
 	try {
-		$key = $sql;
-		$isQeury = str_starts(strtolower($sql), 'select');
-		if ($useCache && $isQeury) {
-			$key = $sql.'-'.json_encode($datas);
-			$value = cache_get($key);
-			if (isset ( $value ) && $value != false)
-				return $value;
-		}
 		$db = db_conn();
 		$res = pdo_query($db, $sql, $datas, $pdoOpt);
-		if ($useCache && $isQeury && $res != null) {
-			cache_set($key, $res);
-		}
+		$db = null;
 		return $res;
 	} catch ( PDOException $e ) {
 		error_log ('DB ERR :'. $e->getMessage() );
 		error_log ('DB ERR SQL:'. $sql );
+		$db = null;
 		return null;
 	}
 }
@@ -388,6 +382,7 @@ function db_query($sql, $datas=[], $useCache = false, $pdoOpt=null) {
 function db_desc($table, $fullInfo=false){
 	$db = db_conn();
 	$cs = pdo_desc($db,$table);
+	$db = null;
 	return $fullInfo? $cs : array_map(function($e){return $e['Field'];},$cs);
 }
 
@@ -399,6 +394,7 @@ function db_query_column($sql, $datas=[], $col){
  * return number result of 'SELECT COUNT'
  */
 function db_count($sql=null, $datas=[], $useCache=false){
+	$db = null;
 	try {
 		if($useCache){
 			$value = cache_get($sql);
@@ -410,22 +406,13 @@ function db_count($sql=null, $datas=[], $useCache=false){
 		if($useCache && $res){
 			cache_set($sql, $res);
 		}
+		$db=null;
 		return $res;
 	} catch (PDOException $e) {
 		elog($e,$sql);
+		$db=null;
 		return 0;
 	}
-}
-
-/**
- * change PDO settings 
- * @example : 
- * 	db_attr(PDO::ATTR_TIMEOUT,1000);
- * 
- * */
-function db_attr($attr, $val){
-	$db = db_conn();
-	$db->setAttribute($attr, $val);
 }
 
 /**
@@ -461,7 +448,10 @@ function db_attr($attr, $val){
  * 
  */
 function db_find($table, $opts=[], $withCount=false, $pdoOpt=null, $schema_def=false){
-	return pdo_find(db_conn(), $table, $opts, $withCount, $pdoOpt, $schema_def);
+	$db = db_conn();
+	$rs = pdo_find($db, $table, $opts, $withCount, $pdoOpt, $schema_def);
+	$db = null;
+	return $rs;
 }
 /**
  * search with data options, returns 1st matched record.
@@ -500,7 +490,10 @@ function db_find1st($table, $opts=[], $pdoOpt=null,$schema_def=false){
  * 
  * */
 function db_import($table, $datas){
-	return pdo_import(db_conn(), $table, $datas, Consts::$schema_reg, Consts::$schema_upd);
+	$db = db_conn();
+	$rs = pdo_import($db, $table, $datas, Consts::$schema_reg, Consts::$schema_upd);
+	$db = null;
+	return $rs;
 }
 
 /**
@@ -633,7 +626,10 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false, $schemaDef
 }
 
 function db_exists($table, $id){
-	return pdo_exists(db_conn(), $table, $id);
+	$db = db_conn();
+	$rs = pdo_exists($db, $table, $id);
+	$db = null;
+	return $rs;
 }
 
 /**
@@ -678,7 +674,8 @@ function db_update($table, $data, $opts=[]){
  */
 function db_migrate($schemaName, $tableName=null){
 	$pdo = db_conn();
-	return pdo_migrate($pdo,Consts::$db_name,$schemaName,$tableName);
+	pdo_migrate($pdo,Consts::$db_name,$schemaName,$tableName);
+	$pdo = null;
 }
 function pdo_migrate($pdo,$dbn,$schemaName,$tableName=null){
 	$isCLI = (php_sapi_name() === 'cli');
@@ -751,7 +748,10 @@ function pdo_migrate($pdo,$dbn,$schemaName,$tableName=null){
  * 
  * */
 function db_save($table, $data, $returnId=false, $schema_def=false){
-	return pdo_save(db_conn(), $table, $data, $returnId,$schema_def);
+	$db = db_conn();
+	$rs = pdo_save($db, $table, $data, $returnId,$schema_def);
+	$db = null;
+	return $rs;
 }
 
 /**
@@ -805,7 +805,10 @@ function db_schema($schemaName=null){
 		echo json_encode($rs);
  * */
 function db_trans($querys,$datas){
-	return pdo_trans(db_conn(), $querys,$datas);
+	$db = db_conn();
+	$rs = pdo_trans($db, $querys,$datas);
+	$db = null;
+	return $rs;
 }
 function bson_enc($arr){
 	$str = json_encode($arr);
@@ -830,18 +833,19 @@ function bson_dec($bson){
  * 
  * */
 function db_v($v, $typeDef='', $bsonText=false){
+	$tp = explode(" ",$typedef)[0];
 	if(!isset($v))
 		return 'NULL';
 	if(is_bool($v))
 		return $v ? 1 : 0;
 	if (is_array($v)){
-		return $bsonText&&(isset($typeDef)&&preg_match('/text/i', $typeDef))? '\''.bson_enc($v).'\''
+		return $bsonText&&(isset($tp)&&preg_match('/text/i', $tp))? '\''.bson_enc($v).'\''
 				: '\''.mysql_escape_string(json_encode($v)).'\'';
 	}
 	if(is_string($v)){
-		if(preg_match('/bigint/i', $typeDef) && str_has($v, '-'))
+		if(preg_match('/bigint/i', $tp) && str_has($v, '-'))
 			return strtotime($v);
-		if(preg_match('/(int|byte)/i', $typeDef))
+		if(preg_match('/(int|byte)/i', $tp))
 			return intval($v);
 		return "'".mysql_escape_string($v)."'";
 	} 

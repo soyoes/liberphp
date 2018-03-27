@@ -207,3 +207,75 @@ function mc_inc($key,$amount=1){
 	$conn = mc_conn();
 	return ($conn)? $conn->increment($k,$amount):false;
 }
+
+
+//redis_servers : 'host:7000', 'host:7001', 'host:7003'
+function redis_conn(){
+	$svs = Conf::$redis_servers;
+	if(empty($svs))return false;
+	if(count($svs)>1){
+		$cluster = new RedisCluster(NULL, $svs);
+		if(Conf::$redis_pass)
+			$cluster->auth(Conf::$redis_pass);
+		$cluster->setOption(Redis::OPT_PREFIX, APP_NAME.'::');
+		return $cluster;
+	}else{
+		$redis = new Redis();
+		$redis->connect($svs[0]);
+		if(Conf::$redis_pass)
+			$redis->auth(Conf::$redis_pass);
+		$redis->setOption(Redis::OPT_PREFIX, APP_NAME.'::');
+		return $redis;
+	}
+}
+
+/**
+ * Get value by key from redis
+ * @param $key:
+ * @return : if failed return false
+ */
+function redis_get($key, $nullHandler=null){
+	$conn = redis_conn();
+	$k = APP_NAME."::".$key;
+	if($conn){
+		$v = $conn->get($k);
+		if(!$v && isset($nullHandler)){
+			$r = $nullHandler($key);
+			if(isset($r)&&$r!=false){
+				mc_set($key, $r);
+			}
+			return $r;
+		}
+		return $v;
+	}
+	return false;
+}
+
+/**
+ * Set value with key to redis
+ * @param $key:
+ * @param $value:
+ * @param $time: default 3600(1 hour)
+ * @return : boolean
+ */
+function redis_set($key, $value, $time=3600){
+	$k = APP_NAME."::".$key;
+	$conn = redis_conn();
+	if(!$conn)return false;
+	if($time>0)
+		$conn->setEx($k,$time,$value);
+	else
+		$conn->set($k,$v);
+}
+
+/**
+ * Delete value from redist with key
+ * @param $key:
+ * @return : boolean
+ * 
+ */
+function redis_del($key){
+	$k = APP_NAME."::".$key;
+	$conn = redis_conn();
+	return ($conn)? $conn->delete($k):false;
+}

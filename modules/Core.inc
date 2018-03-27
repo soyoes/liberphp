@@ -123,6 +123,12 @@ function render_text($text){
 	REQ::write($text,'text');
 }
 
+function render_js($js){
+	header('Content-type: application/javascript; charset=UTF-8');
+	REQ::getInstance()->setResponseBody($js);
+	REQ::write($js,'text');
+}
+
 function render_default_template(){
 	$path = APP_DIR.__SLASH__.'views'.__SLASH__.REQ::getTemplateType();
 	$req = REQ::getInstance();
@@ -254,26 +260,29 @@ function call($url, $method, $data = [], $header = [], $options = []) {
     $method = strtoupper($method);
     $defaults = $method == 'POST' || $method == 'PUT' ? [
         CURLOPT_URL            => $url,
-        CURLOPT_POST           => 1,
-        CURLOPT_HEADER         => 0,
-        CURLOPT_RETURNTRANSFER => 1,
-        CURLOPT_POSTFIELDS     => http_build_query($data)
+        CURLOPT_POST           => true,
+        CURLOPT_HEADER         => false,
+        CURLOPT_RETURNTRANSFER => true,
+		CURLOPT_VERBOSE		=> true,
+		CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_POSTFIELDS     => is_string($data)?$data:http_build_query($data)
     ]:[
         CURLOPT_URL            => $url. (strpos($url, '?') === FALSE ? '?' : ''). http_build_query($data),
-        CURLOPT_HEADER         => 0,
-        CURLOPT_RETURNTRANSFER => 1
+        CURLOPT_HEADER         => false,
+        CURLOPT_RETURNTRANSFER => true,
+		CURLOPT_VERBOSE		=> true,
+		CURLOPT_SSL_VERIFYPEER => false
     ];
-    if ($header) {
+    if (!empty($header)){
         $defaults[CURLOPT_HTTPHEADER] = $header;
     }
-
-    $ch = curl_init();
+    $ch = curl_init($url);
+	// elog($options + $defaults,"opts");
     curl_setopt_array($ch, $options + $defaults);
     if( ! $result = curl_exec($ch)){
         trigger_error(curl_error($ch));
     }
     curl_close($ch);
-    
     return $result;
 }
 

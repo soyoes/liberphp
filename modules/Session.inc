@@ -6,6 +6,9 @@ class Session {
 		if($_REQUEST['client_type']=='cmd'){
 			return $session;
 		}*/
+		ini_set('session.gc_maxlifetime', Conf::$session_lifetime);
+		session_set_cookie_params(Conf::$session_lifetime);
+
 		session_start();
 		$ua = $_SERVER['HTTP_USER_AGENT'];
 		$time = time();
