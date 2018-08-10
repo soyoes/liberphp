@@ -44,6 +44,24 @@ function pdo_conn($opts=null, $pdoOpts=null){
 	return new PDO($conn_str,$opts['user'],$opts['pass'],$pdoOpts);
 }
 
+/**
+ * framework db_conn
+ *
+ * @param [type] $pdoOpts
+ * @return void
+ */
+function fdb_conn($pdoOpts){
+	$opts = [
+		'engine'=>'mysql',
+		'host'	=>property_exists('Conf','framework_db_host')?Conf::$framework_db_host:Conf::$db_host,
+		'port'	=>property_exists('Conf','framework_db_port')?Conf::$framework_db_port:3306,
+		'db'	=>property_exists('Conf','framework_db_name')?Conf::$framework_db_name:Conf::$db_name,
+		'user'	=>property_exists('Conf','framework_db_user')?Conf::$framework_db_user:Conf::$db_user,
+		'pass'	=>property_exists('Conf','framework_db_pass')?Conf::$framework_db_pass:Conf::$db_pass,
+	];
+	return pdo_conn($opts);
+}
+
 function pdo_tables($pdo,$db){
 	$q = $pdo->prepare("SHOW TABLES FROM `$db`");
     $q->execute();
@@ -55,7 +73,6 @@ function pdo_desc($pdo,$table){
     $q->execute();
     return $q->fetchAll();
 }
-
 /**
  *query with pdo instance 
  **/
@@ -236,7 +253,11 @@ function pdo_save($pdo, $table, $data, $returnId=false, $schema_def=false){
 }
 function pdo_find($pdo, $table, $opts=[], $withCount=false, $pdoOpt=null, $schema_def=false){
 	if(!$pdo || !$table)return false;
+	elog($opts,"opts1");
 	list($colStr, $optStr,$datas,$conns) = db_make_query($table, $opts,[],false,$schema_def);
+
+	elog($opts,"opts");
+	elog($datas,"datas");
 	$sql = 'SELECT '.$colStr.' FROM '.$table.$optStr;
 	$res = pdo_query($pdo, $sql, $datas, $pdoOpt);
 	if(!empty($conns) && !empty($res)){
@@ -521,8 +542,7 @@ function db_make_query(&$table, $opts=[], $omit=[], $colPrefix=false, $schemaDef
 	if(!empty($schemaDef)){
 		$schemaDef=is_string($schemaDef)?json_decode($schemaDef,true):$schemaDef;
 	}else{
-		$schemas = db_schema();
-		$schemaDef = $schemas[$schemaname];
+		$schemaDef = db_schema($schemaname);
 	}
 	$pk = $schemaDef['general']['pk'];
 	$schema = $schemaDef['schema'];
@@ -758,35 +778,44 @@ function db_save($table, $data, $returnId=false, $schema_def=false){
  * load schema configuration data from SCHEMA_DIR/$schemaName.ini using APC cache.
  * */
 function db_schema($schemaName=null){
-	$schemas = cache_get('DB_SCHEMAS', function($key){ 
-		$dir = APP_DIR.__SLASH__.'conf'.__SLASH__.'schemas';
-		$files = glob($dir."/*.ini");
-		$schemas = [];
-		$conns = [];
-		foreach ($files as $f) {
-			$n = str_replace([$dir.'/','.ini'], '', $f);
-			$s = parse_ini_file($f, true);
-			if(!empty($s['connect'])){
-				$conns = [];
-				foreach ($s['connect'] as $ck => $cv) {
-					preg_match_all('/(?P<col>[\w\d_]+)\s*=\s*(?P<tbl>[\w\d_]+)\.(?P<tarCol>[\w\d_]+)/', $cv, $mc);
-					if(!empty($mc['col'])&&!empty($mc['tbl'])&&!empty($mc['tarCol'])){
-						$conns[$ck] = [
-							'column' 		=> $mc['col'][0],
-							'table' 		=> $mc['tbl'][0],
-							'target_column' => $mc['tarCol'][0],
-						];
-					}else{
-						throw "DB ERR: wrong format in $f.ini [connect], should be [MAPPING_NAME = 'COLUMN_NAME = TABLE_NAME.COLUMN_NAME']";
-					}
-				}
-				$s['connect'] = $conns;
-			}
-			$schemas[$n] = $s;
+	$schemas = cache_get('DB_SCHEMAS', function($key){
+		$ss = ['project'=>load_schemas($key)];
+		if(!empty(Conf::$framework)){
+			$ss['framework'] = load_schemas($key,Conf::$framework.'/conf/schemas');
 		}
-		return $schemas;
-	},false);
-	return isset($schemaName)? $schemas[$schemaName]:$schemas;
+		return $ss;
+	}, false);
+	// elog($schemas['project'][$schemaName],"SCHE");
+	return isset($schemaName)? ($schemas['project'][$schemaName]?:$schemas['framework'][$schemaName]):$schemas;
+}
+
+function load_schemas($key, $dir=false){ 
+	$dir = $dir ?: APP_DIR.__SLASH__.'conf'.__SLASH__.'schemas';
+	$files = glob($dir."/*.ini");
+	$schemas = [];
+	$conns = [];
+	foreach ($files as $f) {
+		$n = str_replace([$dir.'/','.ini'], '', $f);
+		$s = parse_ini_file($f, true);
+		if(!empty($s['connect'])){
+			$conns = [];
+			foreach ($s['connect'] as $ck => $cv) {
+				preg_match_all('/(?P<col>[\w\d_]+)\s*=\s*(?P<tbl>[\w\d_]+)\.(?P<tarCol>[\w\d_]+)/', $cv, $mc);
+				if(!empty($mc['col'])&&!empty($mc['tbl'])&&!empty($mc['tarCol'])){
+					$conns[$ck] = [
+						'column' 		=> $mc['col'][0],
+						'table' 		=> $mc['tbl'][0],
+						'target_column' => $mc['tarCol'][0],
+					];
+				}else{
+					throw "DB ERR: wrong format in $f.ini [connect], should be [MAPPING_NAME = 'COLUMN_NAME = TABLE_NAME.COLUMN_NAME']";
+				}
+			}
+			$s['connect'] = $conns;
+		}
+		$schemas[$n] = $s;
+	}
+	return $schemas;
 }
 
 /**TODO test

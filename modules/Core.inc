@@ -331,9 +331,9 @@ function user_lang(){
  * 	// target file : /conf/text.csv
  * 	// id : tasks.task_name
  */
-function T($key){
+function T($key,$lang=false){
 	$filename = null;
-	$lang = user_lang();
+	if(!$lang)$lang = user_lang();
 	$text_func = function($fn){
 		$file = join(__SLASH__,[APP_DIR,'conf','text.csv']);
 		if (file_exists($file)){
@@ -677,21 +677,22 @@ class REQ {
 			exec("find $ctrldir",$res);
 			$namespaces = []; $controllers = [];
 			foreach($res as $f){
-				$namespaces []= strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\/(.*)\.inc$/',"/^\//"],["","",""], $f));
+				$namespaces []= strtolower(preg_replace(["/^".str_replace("/","\/",$ctrldir)."/",'/\/(.*)\.inc$/',"/^\//"],["","",""], $f));
 				if(str_ends($f,".inc")){
-					$ctl = strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."controllers")."/",'/\.inc$/',"/^\//"],["","",""], $f));
+					$ctl = strtolower(preg_replace(["/^".str_replace("/","\/",$ctrldir)."/",'/\.inc$/',"/^\//"],["","",""], $f));
 					$controllers[]= $ctl;
 				}
 			}
 			$schemadir = APP_DIR.__SLASH__."conf".__SLASH__."schemas";
 			exec("find $schemadir",$res2);
 			$schemas = array_unique(array_map(function($e){
-				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."conf".__SLASH__."schemas")."/",'/\.ini$/',"/^\//"],["","",""], $e));
+				return strtolower(preg_replace(["/^".str_replace("/","\/",$schemadir)."/",'/\.ini$/',"/^\//"],["","",""], $e));
 			},$res2));
+
 			$vdir = APP_DIR.__SLASH__."views";
 			exec("find $vdir",$res3);
 			$views = array_unique(array_map(function($e){
-				return strtolower(preg_replace(["/^".str_replace("/","\/",APP_DIR.__SLASH__."views".__SLASH__)."/",'/\.html$/',"/^\//"],["","",""], $e));
+				return strtolower(preg_replace(["/^".str_replace("/","\/",$vdir.__SLASH__)."/",'/\.html$/',"/^\//"],["","",""], $e));
 			},$res3));
 			$view_types = glob($vdir.__SLASH__."*",GLOB_ONLYDIR);
 			return [
@@ -701,7 +702,7 @@ class REQ {
 				'schemas'		=> ds_remove($schemas, ''),
 				'views'			=> ds_remove($views, ['','pc','sm','bot','ibot','pad','mail']),
 				'view_types'	=> array_map(function($e){
-					return strtolower(preg_replace(['/^'.str_replace('/','\/',APP_DIR.__SLASH__.'views'.__SLASH__).'/','/^\//'],['',''], $e));
+					return strtolower(preg_replace(['/^'.str_replace('/','\/',$vdir.__SLASH__).'/','/^\//'],['',''], $e));
 				},$view_types)
 			];
 		},false);
@@ -742,6 +743,7 @@ class REQ {
 			$data = $this->data;
 			if ($path==null){
 				$path = APP_DIR.__SLASH__.'views'.__SLASH__.self::$template_type;
+				$path = $_REQUEST['__SERVICE']? $path.'/_'.$_REQUEST['__SERVICE']:$path;
 				$path = $data['namespace']==''? $path:$path.'/'.$data['namespace'];
 			}
 			$render = Render::factory($path);
