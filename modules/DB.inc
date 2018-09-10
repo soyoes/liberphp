@@ -35,8 +35,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
 		'pass'	=>Consts::$db_pass,
 	];
 	if (ini_get('mysqlnd_ms.enable')) {
-		$host = APP_NAME.'_'.Consts::$mode;
-		$conn_str = $opts['engine'].':host='.$host.';dbname='.$opts['db'].';charset=utf8';
+		$conn_str = $opts['engine'].':host='.$opts['host'].';dbname='.$opts['db'].';charset=utf8';
 	} else {
 		$conn_str = $opts['engine'].':host='.$opts['host'].';port='.$opts['port'].';dbname='.$opts['db'].';charset=utf8';
 	}
