@@ -39,7 +39,7 @@ function pdo_conn($opts=null, $pdoOpts=null){
 	} else {
 		$conn_str = $opts['engine'].':host='.$opts['host'].';port='.$opts['port'].';dbname='.$opts['db'].';charset=utf8';
 	}
-	$pdoOpts = $pdoOpts ? $pdoOpts :[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,PDO::ATTR_PERSISTENT => fase];
+	$pdoOpts = $pdoOpts ? $pdoOpts :[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,PDO::ATTR_PERSISTENT => false];
 	return new PDO($conn_str,$opts['user'],$opts['pass'],$pdoOpts);
 }
 
